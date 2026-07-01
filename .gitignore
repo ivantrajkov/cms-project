@@ -1,0 +1,7 @@
+# Frontend (React/Vite)
+**/node_modules/
+**/dist/
+
+# .NET Backend
+**/bin/
+**/obj/
