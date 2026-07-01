@@ -5,3 +5,8 @@
 # .NET Backend
 **/bin/
 **/obj/
+
+# JetBrains Rider
+**/.idea/
+**/*.user
+**/_ReSharper.Caches/
