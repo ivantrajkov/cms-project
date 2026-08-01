@@ -6,6 +6,15 @@
 **/bin/
 **/obj/
 
+# Local SQLite database
+**/cms.db
+**/cms.db-shm
+**/cms.db-wal
+
+# Uploaded images (keep the folder, ignore its contents)
+**/wwwroot/uploads/*
+!**/wwwroot/uploads/.gitkeep
+
 # JetBrains Rider
 **/.idea/
 **/*.user
