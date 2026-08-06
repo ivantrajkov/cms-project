@@ -5,15 +5,28 @@ namespace cms_api.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public DbSet<Page> Pages => Set<Page>();
+    public DbSet<ContentType> ContentTypes => Set<ContentType>();
+
+    public DbSet<ContentItem> ContentItems => Set<ContentItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // Slugs are the public lookup key, so they must be unique.
-        modelBuilder.Entity<Page>()
-            .HasIndex(p => p.Slug)
+        // Type slugs are the public lookup key, so they must be unique.
+        modelBuilder.Entity<ContentType>()
+            .HasIndex(t => t.Slug)
+            .IsUnique();
+
+        modelBuilder.Entity<ContentItem>()
+            .HasOne(i => i.ContentType)
+            .WithMany()
+            .HasForeignKey(i => i.ContentTypeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Item slugs only need to be unique within their own content type.
+        modelBuilder.Entity<ContentItem>()
+            .HasIndex(i => new { i.ContentTypeId, i.Slug })
             .IsUnique();
     }
 }
