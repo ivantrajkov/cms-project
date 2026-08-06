@@ -25,11 +25,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Ensure the SQLite database exists on startup (fine for local dev).
+// Apply any pending EF Core migrations on startup (fine for local dev).
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
+    db.Database.Migrate();
 }
 
 // Configure the HTTP request pipeline.
