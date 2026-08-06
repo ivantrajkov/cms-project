@@ -1,28 +1,41 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { listPages, type PageSummary } from "../lib/api";
+import { listContentItems, PAGE_TYPE_SLUG, type ContentItemSummary } from "../lib/api";
+import { slugify, statusBadge, ui } from "../lib/ui";
 
 /**
  * A tiny dashboard at / listing every page with links to view and edit.
- * Not required by the spec, but makes the data flow easy to exercise.
+ * Pages are items of the built-in "page" content type; other types are managed
+ * from the content types screen.
  */
 export default function HomePage() {
-  const [pages, setPages] = useState<PageSummary[]>([]);
+  const [pages, setPages] = useState<ContentItemSummary[]>([]);
   const [newSlug, setNewSlug] = useState("");
 
   useEffect(() => {
-    listPages().then(setPages).catch(() => setPages([]));
+    listContentItems(PAGE_TYPE_SLUG)
+      .then(setPages)
+      .catch(() => setPages([]));
   }, []);
 
   return (
-    <div style={{ maxWidth: 720, margin: "40px auto", padding: "0 16px" }}>
-      <h1>Pages</h1>
+    <div style={ui.page}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+        <h1>Pages</h1>
+        <Link to="/admin/content-types" style={{ marginLeft: "auto" }}>
+          Manage content types →
+        </Link>
+      </div>
 
-      <ul>
-        {pages.map((p) => (
-          <li key={p.id} style={{ marginBottom: 8 }}>
-            <Link to={`/${p.slug}`}>{p.title}</Link>{" "}
-            <Link to={`/admin/edit/${p.slug}`} style={{ color: "#6b7280" }}>
+      <ul style={{ listStyle: "none", padding: 0 }}>
+        {pages.map((page) => (
+          <li key={page.id} style={{ marginBottom: 8, display: "flex", gap: 8, alignItems: "center" }}>
+            <Link to={`/${page.slug}`}>{page.slug}</Link>
+            <span style={statusBadge(page.status)}>{page.status}</span>
+            <Link
+              to={`/admin/content-types/${PAGE_TYPE_SLUG}/items/${page.slug}`}
+              style={ui.muted}
+            >
               (edit)
             </Link>
           </li>
@@ -33,25 +46,20 @@ export default function HomePage() {
       <hr style={{ margin: "24px 0" }} />
 
       <h2>New page</h2>
-      <form
-        onSubmit={(e) => e.preventDefault()}
-        style={{ display: "flex", gap: 8 }}
-      >
+      <form onSubmit={(e) => e.preventDefault()} style={{ display: "flex", gap: 8 }}>
         <input
           value={newSlug}
           onChange={(e) => setNewSlug(e.target.value)}
           placeholder="slug (e.g. about)"
-          style={{ padding: "6px 8px", flex: 1 }}
+          style={{ ...ui.input, flex: 1 }}
         />
         <Link
-          to={newSlug ? `/admin/edit/${newSlug}` : "#"}
-          style={{
-            padding: "6px 12px",
-            background: "#2563eb",
-            color: "#fff",
-            borderRadius: 6,
-            textDecoration: "none",
-          }}
+          to={
+            newSlug
+              ? `/admin/content-types/${PAGE_TYPE_SLUG}/items/${slugify(newSlug)}`
+              : "#"
+          }
+          style={{ ...ui.primaryButton, textDecoration: "none" }}
         >
           Create / Edit
         </Link>

@@ -1,5 +1,7 @@
 import type { Config, Slot } from "@measured/puck";
 import ImageUploadField from "./components/ImageUploadField";
+import ContentTypePicker from "./components/ContentTypePicker";
+import ContentListBlock from "./components/ContentListBlock";
 
 /**
  * Props for each block, keyed by component name. `Slot` props are drop-zones:
@@ -14,6 +16,7 @@ export interface Props {
   Grid: { columns: number; gap: number; items: Slot };
   Footer: { companyName: string; text: string; items: Slot };
   Spacer: { height: number };
+  ContentList: { contentType: string; columns: number; limit: number };
 }
 
 export const config: Config<Props> = {
@@ -21,6 +24,7 @@ export const config: Config<Props> = {
   categories: {
     layout: { title: "Layout", components: ["Grid", "Spacer"] },
     content: { title: "Content", components: ["HeroBanner", "TextBlock", "Image", "Button"] },
+    dynamic: { title: "Dynamic", components: ["ContentList"] },
     sections: { title: "Sections", components: ["Footer"] },
   },
 
@@ -224,6 +228,44 @@ export const config: Config<Props> = {
         height: 48,
       },
       render: ({ height }) => <div style={{ height }} />,
+    },
+
+    // --- Dynamic --------------------------------------------------------
+
+    ContentList: {
+      label: "Content List",
+      fields: {
+        // Custom field: the options are the content types defined in the CMS, so a
+        // type created at runtime can be selected here with no code change.
+        contentType: {
+          type: "custom",
+          label: "Content type",
+          render: ({ value, onChange, readOnly }) => (
+            <ContentTypePicker value={value ?? ""} onChange={onChange} readOnly={readOnly} />
+          ),
+        },
+        columns: {
+          type: "select",
+          options: [
+            { label: "1 column", value: 1 },
+            { label: "2 columns", value: 2 },
+            { label: "3 columns", value: 3 },
+            { label: "4 columns", value: 4 },
+          ],
+        },
+        limit: { type: "number", min: 0, label: "Limit (0 = all)" },
+      },
+      defaultProps: {
+        contentType: "",
+        columns: 3,
+        limit: 0,
+      },
+      // Unlike the other blocks, this one holds no content of its own — it reads
+      // whatever items currently exist, so publishing a new item updates every page
+      // using this block without any of them being edited.
+      render: ({ contentType, columns, limit }) => (
+        <ContentListBlock contentType={contentType} columns={columns} limit={limit} />
+      ),
     },
 
     // --- Sections -------------------------------------------------------
