@@ -15,6 +15,7 @@ import {
   type FieldDefinition,
   type FieldValues,
 } from "../lib/api";
+import { canEditContent } from "../lib/auth";
 import { ui } from "../lib/ui";
 
 /**
@@ -40,6 +41,8 @@ export default function ContentItemEditorPage() {
   // params shows the loading state on navigation without resetting state in an effect.
   const itemKey = `${typeSlug}/${itemSlug}`;
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
+
+  const mayEdit = canEditContent();
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +150,7 @@ export default function ContentItemEditorPage() {
       <select
         value={itemStatus}
         onChange={(e) => setItemStatus(e.target.value as ContentItemStatus)}
+        disabled={!mayEdit}
         style={ui.input}
       >
         <option value="Draft">Draft</option>
@@ -162,6 +166,12 @@ export default function ContentItemEditorPage() {
     </>
   );
 
+  // Puck renders its own Publish button, so a Viewer cannot simply have it hidden —
+  // say plainly that saving will be refused, and let the API's 403 confirm it.
+  const readOnlyNotice = !mayEdit && (
+    <span style={ui.muted}>Read-only — your role cannot save changes.</span>
+  );
+
   const fieldInputs = scalarFields.map((field) => (
     <label key={field.name} style={{ display: "grid", gap: 4 }}>
       <span>
@@ -175,6 +185,7 @@ export default function ContentItemEditorPage() {
       <FieldInput
         field={field}
         value={values[field.name]}
+        disabled={!mayEdit}
         onChange={(next) => setValues((current) => ({ ...current, [field.name]: next }))}
       />
     </label>
@@ -211,6 +222,7 @@ export default function ContentItemEditorPage() {
               <FieldInput
                 field={field}
                 value={values[field.name]}
+                disabled={!mayEdit}
                 onChange={(next) => setValues((current) => ({ ...current, [field.name]: next }))}
               />
             </label>
@@ -219,6 +231,7 @@ export default function ContentItemEditorPage() {
           {statusPicker}
 
           <span style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center" }}>
+            {readOnlyNotice}
             {feedback}
             {saved && typeSlug === PAGE_TYPE_SLUG && (
               <Link to={`/${itemSlug}`} style={{ fontWeight: 600 }}>
@@ -258,9 +271,12 @@ export default function ContentItemEditorPage() {
         {statusPicker}
 
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <button type="submit" style={ui.primaryButton}>
-            Save
-          </button>
+          {mayEdit && (
+            <button type="submit" style={ui.primaryButton}>
+              Save
+            </button>
+          )}
+          {readOnlyNotice}
           {feedback}
         </div>
       </form>
@@ -272,16 +288,18 @@ interface FieldInputProps {
   field: FieldDefinition;
   value: unknown;
   onChange: (value: unknown) => void;
+  disabled?: boolean;
 }
 
 /** Renders the input appropriate to a field's declared type. */
-function FieldInput({ field, value, onChange }: FieldInputProps) {
+function FieldInput({ field, value, onChange, disabled }: FieldInputProps) {
   switch (field.type) {
     case "Number":
       return (
         <input
           type="number"
           value={typeof value === "number" ? value : ""}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.valueAsNumber)}
           style={ui.input}
         />
@@ -292,6 +310,7 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
         <input
           type="checkbox"
           checked={value === true}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.checked)}
         />
       );
@@ -302,6 +321,7 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
           type="date"
           // <input type="date"> only accepts YYYY-MM-DD; trim any time component.
           value={typeof value === "string" ? value.slice(0, 10) : ""}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)}
           style={ui.input}
         />
@@ -312,6 +332,7 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
         <input
           type="text"
           value={typeof value === "string" ? value : ""}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           style={ui.input}
         />

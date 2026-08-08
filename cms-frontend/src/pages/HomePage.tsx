@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { listContentItems, PAGE_TYPE_SLUG, type ContentItemSummary } from "../lib/api";
+import { canEditContent } from "../lib/auth";
+import SessionBar from "../components/SessionBar";
 import { slugify, statusBadge, ui } from "../lib/ui";
 
 /**
@@ -11,6 +13,7 @@ import { slugify, statusBadge, ui } from "../lib/ui";
 export default function HomePage() {
   const [pages, setPages] = useState<ContentItemSummary[]>([]);
   const [newSlug, setNewSlug] = useState("");
+  const mayEdit = canEditContent();
 
   useEffect(() => {
     listContentItems(PAGE_TYPE_SLUG)
@@ -20,6 +23,8 @@ export default function HomePage() {
 
   return (
     <div style={ui.page}>
+      <SessionBar />
+
       <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
         <h1>Pages</h1>
         <Link to="/admin/content-types" style={{ marginLeft: "auto" }}>
@@ -36,34 +41,40 @@ export default function HomePage() {
               to={`/admin/content-types/${PAGE_TYPE_SLUG}/items/${page.slug}`}
               style={ui.muted}
             >
-              (edit)
+              ({mayEdit ? "edit" : "view"})
             </Link>
           </li>
         ))}
-        {pages.length === 0 && <li>No pages yet — create one below.</li>}
+        {pages.length === 0 && (
+          <li>No pages yet{mayEdit ? " — create one below." : "."}</li>
+        )}
       </ul>
 
-      <hr style={{ margin: "24px 0" }} />
+      {mayEdit && (
+        <>
+          <hr style={{ margin: "24px 0" }} />
 
-      <h2>New page</h2>
-      <form onSubmit={(e) => e.preventDefault()} style={{ display: "flex", gap: 8 }}>
-        <input
-          value={newSlug}
-          onChange={(e) => setNewSlug(e.target.value)}
-          placeholder="slug (e.g. about)"
-          style={{ ...ui.input, flex: 1 }}
-        />
-        <Link
-          to={
-            newSlug
-              ? `/admin/content-types/${PAGE_TYPE_SLUG}/items/${slugify(newSlug)}`
-              : "#"
-          }
-          style={{ ...ui.primaryButton, textDecoration: "none" }}
-        >
-          Create / Edit
-        </Link>
-      </form>
+          <h2>New page</h2>
+          <form onSubmit={(e) => e.preventDefault()} style={{ display: "flex", gap: 8 }}>
+            <input
+              value={newSlug}
+              onChange={(e) => setNewSlug(e.target.value)}
+              placeholder="slug (e.g. about)"
+              style={{ ...ui.input, flex: 1 }}
+            />
+            <Link
+              to={
+                newSlug
+                  ? `/admin/content-types/${PAGE_TYPE_SLUG}/items/${slugify(newSlug)}`
+                  : "#"
+              }
+              style={{ ...ui.primaryButton, textDecoration: "none" }}
+            >
+              Create / Edit
+            </Link>
+          </form>
+        </>
+      )}
     </div>
   );
 }

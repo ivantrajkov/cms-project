@@ -3,6 +3,7 @@ using cms_api.Data;
 using cms_api.Dtos;
 using cms_api.Models;
 using cms_api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,11 +14,20 @@ namespace cms_api.Controllers;
 public class ContentItemsController(AppDbContext db) : ControllerBase
 {
     /// <summary>
+    /// True when the caller presented a valid token. Unauthenticated callers are the public
+    /// website and must only ever observe published content, so draft visibility is decided
+    /// here rather than trusted to the client.
+    /// </summary>
+    private bool CanSeeDrafts => User.Identity?.IsAuthenticated == true;
+
+    /// <summary>
     /// GET /api/content-types/{typeSlug}/items — list items of this type.
     /// <paramref name="status"/> narrows to Draft or Published, <paramref name="limit"/> caps
     /// the count, and <paramref name="includeData"/> adds each item's field values so a caller
     /// rendering the content does not have to fetch every item individually.
+    /// Anonymous callers always receive published items only, whatever they ask for.
     /// </summary>
+    [AllowAnonymous]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ContentItemListDto>>> GetAll(
         string typeSlug,
@@ -41,6 +51,12 @@ public class ContentItemsController(AppDbContext db) : ControllerBase
             .AsNoTracking()
             .Where(i => i.ContentTypeId == type.Id);
 
+        // Applied on top of any requested filter rather than replacing it, so an anonymous
+        // request for drafts correctly yields nothing instead of silently returning
+        // published items the caller did not ask for.
+        if (!CanSeeDrafts)
+            query = query.Where(i => i.Status == ContentItemStatus.Published);
+
         if (statusFilter is not null)
             query = query.Where(i => i.Status == statusFilter);
 
@@ -60,7 +76,12 @@ public class ContentItemsController(AppDbContext db) : ControllerBase
         return Ok(items);
     }
 
-    /// <summary>GET /api/content-types/{typeSlug}/items/{itemSlug} — full item including its DataJson.</summary>
+    /// <summary>
+    /// GET /api/content-types/{typeSlug}/items/{itemSlug} — full item including its DataJson.
+    /// A draft requested anonymously returns 404 rather than 403, so the response does not
+    /// reveal that unpublished content exists at that slug.
+    /// </summary>
+    [AllowAnonymous]
     [HttpGet("{itemSlug}")]
     public async Task<ActionResult<ContentItemDto>> GetBySlug(string typeSlug, string itemSlug)
     {
@@ -75,6 +96,9 @@ public class ContentItemsController(AppDbContext db) : ControllerBase
         if (item is null)
             return NotFound();
 
+        if (item.Status != ContentItemStatus.Published && !CanSeeDrafts)
+            return NotFound();
+
         return Ok(ToDto(item));
     }
 
@@ -82,6 +106,7 @@ public class ContentItemsController(AppDbContext db) : ControllerBase
     /// POST /api/content-types/{typeSlug}/items — create or update an item (upsert keyed on slug).
     /// Validates DataJson against the parent content type's field schema.
     /// </summary>
+    [Authorize(Roles = Roles.ContentAuthors)]
     [HttpPost]
     public async Task<ActionResult<ContentItemDto>> Save(string typeSlug, SaveContentItemRequest request)
     {
@@ -148,6 +173,7 @@ public class ContentItemsController(AppDbContext db) : ControllerBase
     }
 
     /// <summary>DELETE /api/content-types/{typeSlug}/items/{itemSlug}.</summary>
+    [Authorize(Roles = Roles.ContentAuthors)]
     [HttpDelete("{itemSlug}")]
     public async Task<IActionResult> Delete(string typeSlug, string itemSlug)
     {

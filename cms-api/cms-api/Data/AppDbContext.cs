@@ -9,9 +9,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     public DbSet<ContentItem> ContentItems => Set<ContentItem>();
 
+    public DbSet<User> Users => Set<User>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // Email is the login identifier, so it must be unique.
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.Email)
+            .IsUnique();
 
         // Type slugs are the public lookup key, so they must be unique.
         modelBuilder.Entity<ContentType>()

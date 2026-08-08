@@ -1,9 +1,16 @@
+using cms_api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace cms_api.Controllers;
 
+/// <summary>
+/// Image uploads. Restricted to content authors — an open upload endpoint lets anyone
+/// write arbitrary files into the served <c>wwwroot</c> directory.
+/// </summary>
 [ApiController]
 [Route("api/upload")]
+[Authorize(Roles = Roles.ContentAuthors)]
 public class UploadController(IWebHostEnvironment env) : ControllerBase
 {
     private static readonly Dictionary<string, string> AllowedTypes = new()

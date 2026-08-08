@@ -1,4 +1,5 @@
 import type { Data } from "@measured/puck";
+import { clearSession, getSession, setToken, type Role } from "./auth";
 
 // The .NET API. Use the HTTP launch profile (dotnet run --launch-profile http)
 // so there is no HTTPS-redirect/self-signed-cert friction during local dev.
@@ -70,6 +71,38 @@ export interface SaveContentItemRequest {
 /** A content item's decoded field values, keyed by field name. */
 export type FieldValues = Record<string, unknown>;
 
+export interface LoginResponse {
+  token: string;
+  email: string;
+  role: Role;
+  expiresAt: string;
+}
+
+export interface CurrentUser {
+  id: string;
+  email: string;
+  role: Role;
+}
+
+export interface UserSummary {
+  id: string;
+  email: string;
+  role: Role;
+  createdAt: string;
+}
+
+export interface CreateUserRequest {
+  email: string;
+  password: string;
+  role: Role;
+}
+
+export interface UpdateUserRequest {
+  role: Role;
+  /** Blank or omitted leaves the existing password unchanged. */
+  password?: string;
+}
+
 /**
  * The API reports failures in three shapes: a plain-text string (`BadRequest("...")`),
  * a JSON array of validation messages (`BadRequest(errors)`), and ASP.NET's
@@ -97,24 +130,124 @@ async function readError(res: Response, fallback: string): Promise<string> {
   return text;
 }
 
+interface FetchOptions {
+  /** Set on the login call, where a 401 is an expected answer rather than a dead session. */
+  allowUnauthorized?: boolean;
+}
+
+/**
+ * Single entry point for every API call.
+ *
+ * The token is taken from `getSession()` rather than raw storage, so an expired token is
+ * never sent — otherwise a stale token would turn an anonymous public page view into a
+ * 401 and bounce a visitor to the login screen.
+ */
+async function apiFetch(
+  path: string,
+  init: RequestInit = {},
+  options: FetchOptions = {}
+): Promise<Response> {
+  const session = getSession();
+
+  const headers = new Headers(init.headers);
+  if (session) headers.set("Authorization", `Bearer ${session.token}`);
+
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+
+  // A 401 means the session is gone or was never valid: drop it and send the user to
+  // the login screen, remembering where they were.
+  if (res.status === 401 && !options.allowUnauthorized) {
+    clearSession();
+    if (!window.location.pathname.startsWith("/login")) {
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.assign(`/login?next=${next}`);
+    }
+  }
+
+  return res;
+}
+
+// --- Auth ---------------------------------------------------------------
+
+/** POST /api/auth/login — on success the token is stored for subsequent calls. */
+export async function login(email: string, password: string): Promise<LoginResponse> {
+  const res = await apiFetch(
+    "/api/auth/login",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    },
+    { allowUnauthorized: true }
+  );
+
+  if (!res.ok) throw new Error(await readError(res, `Login failed (${res.status})`));
+
+  const session = (await res.json()) as LoginResponse;
+  setToken(session.token);
+  return session;
+}
+
+/** GET /api/auth/me */
+export async function getMe(): Promise<CurrentUser> {
+  const res = await apiFetch("/api/auth/me");
+  if (!res.ok) throw new Error(await readError(res, `Failed to load account (${res.status})`));
+  return res.json();
+}
+
+// --- Users (Admin only) -------------------------------------------------
+
+export async function listUsers(): Promise<UserSummary[]> {
+  const res = await apiFetch("/api/users");
+  if (!res.ok) throw new Error(await readError(res, `Failed to list users (${res.status})`));
+  return res.json();
+}
+
+export async function createUser(payload: CreateUserRequest): Promise<UserSummary> {
+  const res = await apiFetch("/api/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await readError(res, `Failed to create user (${res.status})`));
+  return res.json();
+}
+
+export async function updateUser(id: string, payload: UpdateUserRequest): Promise<UserSummary> {
+  const res = await apiFetch(`/api/users/${encodeURIComponent(id)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await readError(res, `Failed to update user (${res.status})`));
+  return res.json();
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  const res = await apiFetch(`/api/users/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await readError(res, `Failed to delete user (${res.status})`));
+}
+
+// --- Content types ------------------------------------------------------
+
 /** GET /api/content-types */
 export async function listContentTypes(): Promise<ContentTypeSummary[]> {
-  const res = await fetch(`${API_BASE}/api/content-types`);
+  const res = await apiFetch("/api/content-types");
   if (!res.ok) throw new Error(await readError(res, `Failed to list content types (${res.status})`));
   return res.json();
 }
 
 /** GET /api/content-types/{slug} — returns null on 404. */
 export async function getContentType(slug: string): Promise<ContentType | null> {
-  const res = await fetch(`${API_BASE}/api/content-types/${encodeURIComponent(slug)}`);
+  const res = await apiFetch(`/api/content-types/${encodeURIComponent(slug)}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(await readError(res, `Failed to load content type (${res.status})`));
   return res.json();
 }
 
-/** POST /api/content-types — create or update, keyed on slug. */
+/** POST /api/content-types — create or update, keyed on slug. Admin only. */
 export async function saveContentType(payload: SaveContentTypeRequest): Promise<ContentType> {
-  const res = await fetch(`${API_BASE}/api/content-types`, {
+  const res = await apiFetch("/api/content-types", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -125,11 +258,13 @@ export async function saveContentType(payload: SaveContentTypeRequest): Promise<
 
 /** DELETE /api/content-types/{slug} — refused by the API if the type still has items. */
 export async function deleteContentType(slug: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/content-types/${encodeURIComponent(slug)}`, {
+  const res = await apiFetch(`/api/content-types/${encodeURIComponent(slug)}`, {
     method: "DELETE",
   });
   if (!res.ok) throw new Error(await readError(res, `Failed to delete content type (${res.status})`));
 }
+
+// --- Content items ------------------------------------------------------
 
 /** GET /api/content-types/{typeSlug}/items */
 export async function listContentItems(
@@ -142,8 +277,8 @@ export async function listContentItems(
   if (options.limit && options.limit > 0) query.set("limit", String(options.limit));
 
   const suffix = query.size > 0 ? `?${query}` : "";
-  const res = await fetch(
-    `${API_BASE}/api/content-types/${encodeURIComponent(typeSlug)}/items${suffix}`
+  const res = await apiFetch(
+    `/api/content-types/${encodeURIComponent(typeSlug)}/items${suffix}`
   );
   if (!res.ok) throw new Error(await readError(res, `Failed to list items (${res.status})`));
   return res.json();
@@ -154,8 +289,8 @@ export async function getContentItem(
   typeSlug: string,
   itemSlug: string
 ): Promise<ContentItem | null> {
-  const res = await fetch(
-    `${API_BASE}/api/content-types/${encodeURIComponent(typeSlug)}/items/${encodeURIComponent(itemSlug)}`
+  const res = await apiFetch(
+    `/api/content-types/${encodeURIComponent(typeSlug)}/items/${encodeURIComponent(itemSlug)}`
   );
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(await readError(res, `Failed to load item (${res.status})`));
@@ -167,7 +302,7 @@ export async function saveContentItem(
   typeSlug: string,
   payload: SaveContentItemRequest
 ): Promise<ContentItem> {
-  const res = await fetch(`${API_BASE}/api/content-types/${encodeURIComponent(typeSlug)}/items`, {
+  const res = await apiFetch(`/api/content-types/${encodeURIComponent(typeSlug)}/items`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -178,8 +313,8 @@ export async function saveContentItem(
 
 /** DELETE /api/content-types/{typeSlug}/items/{itemSlug} */
 export async function deleteContentItem(typeSlug: string, itemSlug: string): Promise<void> {
-  const res = await fetch(
-    `${API_BASE}/api/content-types/${encodeURIComponent(typeSlug)}/items/${encodeURIComponent(itemSlug)}`,
+  const res = await apiFetch(
+    `/api/content-types/${encodeURIComponent(typeSlug)}/items/${encodeURIComponent(itemSlug)}`,
     { method: "DELETE" }
   );
   if (!res.ok) throw new Error(await readError(res, `Failed to delete item (${res.status})`));
@@ -190,14 +325,14 @@ export async function uploadImage(file: File): Promise<string> {
   const form = new FormData();
   form.append("file", file);
 
-  const res = await fetch(`${API_BASE}/api/upload`, {
-    method: "POST",
-    body: form,
-  });
+  // No explicit Content-Type: the browser must set the multipart boundary itself.
+  const res = await apiFetch("/api/upload", { method: "POST", body: form });
   if (!res.ok) throw new Error(await readError(res, `Upload failed (${res.status})`));
   const { url } = (await res.json()) as { url: string };
   return url;
 }
+
+// --- Helpers ------------------------------------------------------------
 
 /**
  * Parse a content item's stringified DataJson into its field values.
