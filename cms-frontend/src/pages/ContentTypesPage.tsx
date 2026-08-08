@@ -9,6 +9,8 @@ import {
   type FieldDefinition,
   type FieldType,
 } from "../lib/api";
+import { canManageSchema } from "../lib/auth";
+import SessionBar from "../components/SessionBar";
 import { slugify, ui } from "../lib/ui";
 
 const emptyField: FieldDefinition = { name: "", type: "Text", required: false };
@@ -25,6 +27,8 @@ export default function ContentTypesPage() {
   const [fields, setFields] = useState<FieldDefinition[]>([{ ...emptyField }]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  // Schema changes affect every existing item of a type, so they are Admin-only.
+  const mayManage = canManageSchema();
 
   async function refresh() {
     try {
@@ -94,6 +98,8 @@ export default function ContentTypesPage() {
 
   return (
     <div style={ui.page}>
+      <SessionBar />
+
       <Link to="/" style={{ ...ui.muted, textDecoration: "none" }}>
         ← Dashboard
       </Link>
@@ -102,6 +108,7 @@ export default function ContentTypesPage() {
       <p style={ui.muted}>
         A content type is a schema: a named set of typed fields. Items of that type are
         validated against it when they are saved.
+        {!mayManage && " Only an Admin can create or delete them."}
       </p>
 
       {error && <p style={ui.error}>{error}</p>}
@@ -122,17 +129,21 @@ export default function ContentTypesPage() {
               {type.name}
             </Link>
             <code style={ui.muted}>{type.slug}</code>
-            <button
-              onClick={() => handleDelete(type.slug)}
-              style={{ ...ui.secondaryButton, marginLeft: "auto" }}
-            >
-              Delete
-            </button>
+            {mayManage && (
+              <button
+                onClick={() => handleDelete(type.slug)}
+                style={{ ...ui.secondaryButton, marginLeft: "auto" }}
+              >
+                Delete
+              </button>
+            )}
           </li>
         ))}
         {types.length === 0 && <li style={ui.muted}>No content types yet.</li>}
       </ul>
 
+      {!mayManage ? null : (
+        <>
       <hr style={{ margin: "24px 0" }} />
 
       <h2>New content type</h2>
@@ -220,6 +231,8 @@ export default function ContentTypesPage() {
           {saving ? "Saving…" : "Create content type"}
         </button>
       </form>
+        </>
+      )}
     </div>
   );
 }

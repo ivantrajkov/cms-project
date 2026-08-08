@@ -3,6 +3,7 @@ using cms_api.Data;
 using cms_api.Dtos;
 using cms_api.Models;
 using cms_api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,7 +13,11 @@ namespace cms_api.Controllers;
 [Route("api/content-types")]
 public class ContentTypesController(AppDbContext db) : ControllerBase
 {
-    /// <summary>GET /api/content-types — list all content types (Id, Name, Slug only).</summary>
+    /// <summary>
+    /// GET /api/content-types — list all content types (Id, Name, Slug only).
+    /// Anonymous: the public renderer needs the list of types to resolve a Content List block.
+    /// </summary>
+    [AllowAnonymous]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ContentTypeSummaryDto>>> GetAll()
     {
@@ -24,7 +29,12 @@ public class ContentTypesController(AppDbContext db) : ControllerBase
         return Ok(types);
     }
 
-    /// <summary>GET /api/content-types/{slug} — full content type including its field schema.</summary>
+    /// <summary>
+    /// GET /api/content-types/{slug} — full content type including its field schema.
+    /// Anonymous: the public renderer reads the schema to locate a type's Layout field
+    /// and to know which fields to draw on a card.
+    /// </summary>
+    [AllowAnonymous]
     [HttpGet("{slug}")]
     public async Task<ActionResult<ContentTypeDto>> GetBySlug(string slug)
     {
@@ -36,7 +46,11 @@ public class ContentTypesController(AppDbContext db) : ControllerBase
         return Ok(ToDto(type));
     }
 
-    /// <summary>POST /api/content-types — create or update a content type (upsert keyed on slug).</summary>
+    /// <summary>
+    /// POST /api/content-types — create or update a content type (upsert keyed on slug).
+    /// Admin only: a schema change affects every existing item of the type.
+    /// </summary>
+    [Authorize(Roles = Roles.Admin)]
     [HttpPost]
     public async Task<ActionResult<ContentTypeDto>> Save(SaveContentTypeRequest request)
     {
@@ -99,6 +113,7 @@ public class ContentTypesController(AppDbContext db) : ControllerBase
     }
 
     /// <summary>DELETE /api/content-types/{slug} — refuses if any items still reference this type.</summary>
+    [Authorize(Roles = Roles.Admin)]
     [HttpDelete("{slug}")]
     public async Task<IActionResult> Delete(string slug)
     {

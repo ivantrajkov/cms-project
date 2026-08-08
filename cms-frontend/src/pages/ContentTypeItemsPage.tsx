@@ -8,6 +8,8 @@ import {
   type ContentItemSummary,
   type ContentType,
 } from "../lib/api";
+import { canEditContent } from "../lib/auth";
+import SessionBar from "../components/SessionBar";
 import { slugify, statusBadge, ui } from "../lib/ui";
 
 /** Admin screen at /admin/content-types/:typeSlug — lists every item of one content type. */
@@ -17,6 +19,7 @@ export default function ContentTypeItemsPage() {
   const [items, setItems] = useState<ContentItemSummary[]>([]);
   const [newSlug, setNewSlug] = useState("");
   const [error, setError] = useState("");
+  const mayEdit = canEditContent();
   // Which type the loaded data belongs to. Comparing it against the current route
   // param shows the loading state on navigation without resetting state in an effect.
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
@@ -89,6 +92,8 @@ export default function ContentTypeItemsPage() {
 
   return (
     <div style={ui.page}>
+      <SessionBar />
+
       <Link to="/admin/content-types" style={{ ...ui.muted, textDecoration: "none" }}>
         ← Content types
       </Link>
@@ -132,34 +137,42 @@ export default function ContentTypeItemsPage() {
               </Link>
             )}
 
-            <button
-              onClick={() => handleDelete(item.slug)}
-              style={{ ...ui.secondaryButton, marginLeft: "auto" }}
-            >
-              Delete
-            </button>
+            {mayEdit && (
+              <button
+                onClick={() => handleDelete(item.slug)}
+                style={{ ...ui.secondaryButton, marginLeft: "auto" }}
+              >
+                Delete
+              </button>
+            )}
           </li>
         ))}
-        {items.length === 0 && <li style={ui.muted}>No items yet — create one below.</li>}
+        {items.length === 0 && (
+          <li style={ui.muted}>No items yet{mayEdit ? " — create one below." : "."}</li>
+        )}
       </ul>
 
-      <hr style={{ margin: "24px 0" }} />
+      {mayEdit && (
+        <>
+          <hr style={{ margin: "24px 0" }} />
 
-      <h2>New {type.name.toLowerCase()}</h2>
-      <form onSubmit={(e) => e.preventDefault()} style={{ display: "flex", gap: 8 }}>
-        <input
-          value={newSlug}
-          onChange={(e) => setNewSlug(e.target.value)}
-          placeholder="slug (e.g. about)"
-          style={{ ...ui.input, flex: 1 }}
-        />
-        <Link
-          to={newSlug ? `/admin/content-types/${typeSlug}/items/${slugify(newSlug)}` : "#"}
-          style={{ ...ui.primaryButton, textDecoration: "none" }}
-        >
-          Create / Edit
-        </Link>
-      </form>
+          <h2>New {type.name.toLowerCase()}</h2>
+          <form onSubmit={(e) => e.preventDefault()} style={{ display: "flex", gap: 8 }}>
+            <input
+              value={newSlug}
+              onChange={(e) => setNewSlug(e.target.value)}
+              placeholder="slug (e.g. about)"
+              style={{ ...ui.input, flex: 1 }}
+            />
+            <Link
+              to={newSlug ? `/admin/content-types/${typeSlug}/items/${slugify(newSlug)}` : "#"}
+              style={{ ...ui.primaryButton, textDecoration: "none" }}
+            >
+              Create / Edit
+            </Link>
+          </form>
+        </>
+      )}
     </div>
   );
 }
