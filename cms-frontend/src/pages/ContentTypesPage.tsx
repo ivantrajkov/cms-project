@@ -188,7 +188,15 @@ export default function ContentTypesPage() {
 
               <select
                 value={field.type}
-                onChange={(e) => updateField(index, { type: e.target.value as FieldType })}
+                onChange={(e) => {
+                  const type = e.target.value as FieldType;
+                  // A target only applies to Reference; drop it when switching away so the
+                  // schema never carries a stale pointer.
+                  updateField(index, {
+                    type,
+                    targetType: type === "Reference" ? field.targetType ?? "" : null,
+                  });
+                }}
                 style={ui.input}
               >
                 {FIELD_TYPES.map((type) => (
@@ -197,6 +205,21 @@ export default function ContentTypesPage() {
                   </option>
                 ))}
               </select>
+
+              {field.type === "Reference" && (
+                <select
+                  value={field.targetType ?? ""}
+                  onChange={(e) => updateField(index, { targetType: e.target.value })}
+                  style={ui.input}
+                >
+                  <option value="">points at…</option>
+                  {types.map((t) => (
+                    <option key={t.id} value={t.slug}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               <label style={{ display: "flex", gap: 4, alignItems: "center", ...ui.muted }}>
                 <input

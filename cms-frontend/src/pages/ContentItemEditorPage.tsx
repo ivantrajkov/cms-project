@@ -16,6 +16,8 @@ import {
   type FieldValues,
 } from "../lib/api";
 import { canEditContent } from "../lib/auth";
+import MediaPickerField from "../components/MediaPickerField";
+import ReferencePickerField from "../components/ReferencePickerField";
 import { ui } from "../lib/ui";
 
 /**
@@ -294,6 +296,25 @@ interface FieldInputProps {
 /** Renders the input appropriate to a field's declared type. */
 function FieldInput({ field, value, onChange, disabled }: FieldInputProps) {
   switch (field.type) {
+    case "Image":
+      return (
+        <MediaPickerField
+          value={typeof value === "string" ? value : ""}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      );
+
+    case "Reference":
+      return (
+        <ReferencePickerField
+          targetType={field.targetType}
+          value={typeof value === "string" ? value : ""}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      );
+
     case "Number":
       return (
         <input

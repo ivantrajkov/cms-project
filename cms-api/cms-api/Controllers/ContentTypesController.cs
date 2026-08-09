@@ -79,7 +79,8 @@ public class ContentTypesController(AppDbContext db) : ControllerBase
             {
                 Name = f.Name,
                 Type = Enum.Parse<FieldType>(f.Type, ignoreCase: true),
-                Required = f.Required
+                Required = f.Required,
+                TargetType = f.TargetType
             }).ToList();
         }
         catch (ArgumentException)
@@ -87,6 +88,21 @@ public class ContentTypesController(AppDbContext db) : ControllerBase
             var validTypes = string.Join(", ", Enum.GetNames<FieldType>());
             return BadRequest($"Field type must be one of: {validTypes}.");
         }
+
+        // A Reference field is meaningless without a target, and pointing at a content type
+        // that does not exist would produce items nothing could ever resolve.
+        foreach (var field in fields.Where(f => f.Type == FieldType.Reference))
+        {
+            if (string.IsNullOrWhiteSpace(field.TargetType))
+                return BadRequest($"Reference field '{field.Name}' needs a target content type.");
+
+            if (!await db.ContentTypes.AnyAsync(t => t.Slug == field.TargetType))
+                return BadRequest($"Reference field '{field.Name}' targets unknown content type '{field.TargetType}'.");
+        }
+
+        // Keep the stored schema clean: a target only means something on a Reference field.
+        foreach (var field in fields.Where(f => f.Type != FieldType.Reference))
+            field.TargetType = null;
 
         var type = await db.ContentTypes.FirstOrDefaultAsync(t => t.Slug == request.Slug);
 
@@ -126,6 +142,24 @@ public class ContentTypesController(AppDbContext db) : ControllerBase
         if (hasItems)
             return BadRequest("Cannot delete a content type that still has items.");
 
+        // Other schemas may point at this one; removing it would leave their Reference
+        // fields targeting a content type that no longer exists.
+        var referringTypes = await db.ContentTypes
+            .Where(t => t.Id != type.Id)
+            .ToListAsync();
+
+        var referredBy = referringTypes
+            .Where(t => ContentSchema.Parse(t)
+                .Any(f => f.Type == FieldType.Reference && f.TargetType == type.Slug))
+            .Select(t => t.Slug)
+            .ToList();
+
+        if (referredBy.Count > 0)
+        {
+            return BadRequest(
+                $"Cannot delete: referenced by content type(s) {string.Join(", ", referredBy)}.");
+        }
+
         db.ContentTypes.Remove(type);
         await db.SaveChangesAsync();
 
@@ -134,8 +168,9 @@ public class ContentTypesController(AppDbContext db) : ControllerBase
 
     private static ContentTypeDto ToDto(ContentType type)
     {
-        var fields = JsonSerializer.Deserialize<List<FieldDefinition>>(type.FieldsSchemaJson) ?? [];
-        var fieldDtos = fields.Select(f => new FieldDefinitionDto(f.Name, f.Type.ToString(), f.Required)).ToList();
+        var fieldDtos = ContentSchema.Parse(type)
+            .Select(f => new FieldDefinitionDto(f.Name, f.Type.ToString(), f.Required, f.TargetType))
+            .ToList();
         return new ContentTypeDto(type.Id, type.Name, type.Slug, fieldDtos);
     }
 }

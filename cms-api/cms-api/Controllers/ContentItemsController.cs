@@ -11,7 +11,10 @@ namespace cms_api.Controllers;
 
 [ApiController]
 [Route("api/content-types/{typeSlug}/items")]
-public class ContentItemsController(AppDbContext db) : ControllerBase
+public class ContentItemsController(
+    AppDbContext db,
+    ReferenceValidator referenceValidator,
+    ReferenceFinder referenceFinder) : ControllerBase
 {
     /// <summary>
     /// True when the caller presented a valid token. Unauthenticated callers are the public
@@ -135,8 +138,16 @@ public class ContentItemsController(AppDbContext db) : ControllerBase
 
         using (dataDoc)
         {
-            var fields = JsonSerializer.Deserialize<List<FieldDefinition>>(type.FieldsSchemaJson) ?? [];
+            var fields = ContentSchema.Parse(type);
+
+            // Shape first (types, required, unknown fields), then existence of anything the
+            // payload points at. Order matters: resolving ids is pointless if the value is
+            // not even a well-formed id.
             var errors = ContentItemValidator.Validate(fields, dataDoc.RootElement);
+            if (errors.Count > 0)
+                return BadRequest(errors);
+
+            errors = await referenceValidator.ValidateAsync(fields, dataDoc.RootElement);
             if (errors.Count > 0)
                 return BadRequest(errors);
 
@@ -172,7 +183,10 @@ public class ContentItemsController(AppDbContext db) : ControllerBase
         }
     }
 
-    /// <summary>DELETE /api/content-types/{typeSlug}/items/{itemSlug}.</summary>
+    /// <summary>
+    /// DELETE /api/content-types/{typeSlug}/items/{itemSlug} — refused while other items
+    /// still reference this one, so a Reference field can never point at a deleted item.
+    /// </summary>
     [Authorize(Roles = Roles.ContentAuthors)]
     [HttpDelete("{itemSlug}")]
     public async Task<IActionResult> Delete(string typeSlug, string itemSlug)
@@ -186,6 +200,10 @@ public class ContentItemsController(AppDbContext db) : ControllerBase
 
         if (item is null)
             return NotFound();
+
+        var referrers = await referenceFinder.FindReferrersToItemAsync(item.Id, type.Slug);
+        if (referrers.Count > 0)
+            return BadRequest($"Cannot delete: referenced by {string.Join(", ", referrers)}.");
 
         db.ContentItems.Remove(item);
         await db.SaveChangesAsync();
