@@ -19,6 +19,10 @@ builder.Services.AddOpenApi();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Content validation and integrity checks that need database access.
+builder.Services.AddScoped<ReferenceValidator>();
+builder.Services.AddScoped<ReferenceFinder>();
+
 // --- Authentication & authorization -------------------------------------
 
 // Validate() throws on a missing or too-short signing key, so a misconfigured
@@ -104,6 +108,11 @@ app.UseHttpsRedirection();
 // auth middleware: published pages reference these URLs and must load for visitors.
 app.UseStaticFiles();
 
+// Routing is explicit and placed after UseStaticFiles. Otherwise it is auto-inserted at the
+// top of the pipeline, an endpoint is selected before static files run, and StaticFileMiddleware
+// then declines to serve the file — which would make every upload 404 once a catch-all exists.
+app.UseRouting();
+
 app.UseCors(DevCorsPolicy);
 
 app.UseAuthentication();
@@ -111,6 +120,13 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// The FallbackPolicy is also applied when nothing matches at all, which turns every
+// unknown path — a missing upload, a mistyped route — into a 401 for anonymous callers.
+// This terminal 404 keeps "not found" distinguishable from "not allowed". The explicit
+// "{*path}" pattern is required: MapFallback's default excludes file-like paths, which
+// would leave requests such as /uploads/missing.png unmatched and therefore 401.
+app.MapFallback("{*path}", () => Results.NotFound()).AllowAnonymous();
 
 app.Run();
 

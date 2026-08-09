@@ -1,3 +1,5 @@
+using cms_api.Data;
+using cms_api.Models;
 using cms_api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +13,7 @@ namespace cms_api.Controllers;
 [ApiController]
 [Route("api/upload")]
 [Authorize(Roles = Roles.ContentAuthors)]
-public class UploadController(IWebHostEnvironment env) : ControllerBase
+public class UploadController(IWebHostEnvironment env, AppDbContext db) : ControllerBase
 {
     private static readonly Dictionary<string, string> AllowedTypes = new()
     {
@@ -25,8 +27,9 @@ public class UploadController(IWebHostEnvironment env) : ControllerBase
     private const long MaxBytes = 5 * 1024 * 1024; // 5 MB
 
     /// <summary>
-    /// POST /api/upload — accepts a single image (multipart form field "file"),
-    /// stores it under wwwroot/uploads, and returns its absolute URL.
+    /// POST /api/upload — accepts a single image (multipart form field "file"), stores it
+    /// under wwwroot/uploads and records it as a <see cref="MediaAsset"/>.
+    /// The response still carries <c>url</c> so callers that only want the URL keep working.
     /// </summary>
     [HttpPost]
     [RequestSizeLimit(MaxBytes)]
@@ -56,8 +59,26 @@ public class UploadController(IWebHostEnvironment env) : ControllerBase
 
         // Absolute URL so both the editor (5173) and the live page can load it.
         var url = $"{Request.Scheme}://{Request.Host}/uploads/{fileName}";
-        return Ok(new UploadResult(url));
+
+        var asset = new MediaAsset
+        {
+            Id = Guid.NewGuid(),
+            FileName = fileName,
+            // Path.GetFileName strips any directory component a client may have sent.
+            OriginalFileName = Path.GetFileName(file.FileName ?? fileName),
+            Url = url,
+            ContentType = file.ContentType,
+            SizeBytes = file.Length,
+            AltText = string.Empty,
+            UploadedAt = DateTime.UtcNow
+        };
+
+        db.MediaAssets.Add(asset);
+        await db.SaveChangesAsync();
+
+        return Ok(new UploadResult(asset.Url, asset.Id, asset.OriginalFileName, asset.SizeBytes));
     }
 }
 
-public record UploadResult(string Url);
+/// <summary><c>Url</c> stays first and required — existing callers read only that.</summary>
+public record UploadResult(string Url, Guid Id, string OriginalFileName, long SizeBytes);

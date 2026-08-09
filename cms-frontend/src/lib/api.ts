@@ -8,9 +8,24 @@ const API_BASE = "http://localhost:5051";
 /** Slug of the built-in content type that the original Page entity was migrated into. */
 export const PAGE_TYPE_SLUG = "page";
 
-export type FieldType = "Text" | "Number" | "Boolean" | "Date" | "Layout";
+export type FieldType =
+  | "Text"
+  | "Number"
+  | "Boolean"
+  | "Date"
+  | "Layout"
+  | "Image"
+  | "Reference";
 
-export const FIELD_TYPES: FieldType[] = ["Text", "Number", "Boolean", "Date", "Layout"];
+export const FIELD_TYPES: FieldType[] = [
+  "Text",
+  "Number",
+  "Boolean",
+  "Date",
+  "Layout",
+  "Image",
+  "Reference",
+];
 
 export type ContentItemStatus = "Draft" | "Published";
 
@@ -18,6 +33,26 @@ export interface FieldDefinition {
   name: string;
   type: FieldType;
   required: boolean;
+  /** For a Reference field, the slug of the content type it points at. */
+  targetType?: string | null;
+}
+
+export interface MediaAsset {
+  id: string;
+  fileName: string;
+  originalFileName: string;
+  url: string;
+  contentType: string;
+  sizeBytes: number;
+  altText: string;
+  uploadedAt: string;
+}
+
+export interface UploadResult {
+  url: string;
+  id: string;
+  originalFileName: string;
+  sizeBytes: number;
 }
 
 export interface ContentTypeSummary {
@@ -320,16 +355,55 @@ export async function deleteContentItem(typeSlug: string, itemSlug: string): Pro
   if (!res.ok) throw new Error(await readError(res, `Failed to delete item (${res.status})`));
 }
 
-/** POST /api/upload — uploads an image file and returns its absolute URL. */
-export async function uploadImage(file: File): Promise<string> {
+// --- Media -------------------------------------------------------------
+
+/** POST /api/upload — uploads a file and returns the created media asset's id and URL. */
+export async function uploadMedia(file: File): Promise<UploadResult> {
   const form = new FormData();
   form.append("file", file);
 
   // No explicit Content-Type: the browser must set the multipart boundary itself.
   const res = await apiFetch("/api/upload", { method: "POST", body: form });
   if (!res.ok) throw new Error(await readError(res, `Upload failed (${res.status})`));
-  const { url } = (await res.json()) as { url: string };
+  return res.json();
+}
+
+/** Uploads and returns only the URL — kept for the Puck image field, which stores URLs. */
+export async function uploadImage(file: File): Promise<string> {
+  const { url } = await uploadMedia(file);
   return url;
+}
+
+/** GET /api/media — anonymous, so public pages can resolve an Image field's id. */
+export async function listMedia(): Promise<MediaAsset[]> {
+  const res = await apiFetch("/api/media");
+  if (!res.ok) throw new Error(await readError(res, `Failed to list media (${res.status})`));
+  return res.json();
+}
+
+/** GET /api/media/{id} — returns null on 404. */
+export async function getMedia(id: string): Promise<MediaAsset | null> {
+  const res = await apiFetch(`/api/media/${encodeURIComponent(id)}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(await readError(res, `Failed to load media (${res.status})`));
+  return res.json();
+}
+
+/** POST /api/media/{id} — update alt text. */
+export async function updateMedia(id: string, altText: string): Promise<MediaAsset> {
+  const res = await apiFetch(`/api/media/${encodeURIComponent(id)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ altText }),
+  });
+  if (!res.ok) throw new Error(await readError(res, `Failed to update media (${res.status})`));
+  return res.json();
+}
+
+/** DELETE /api/media/{id} — refused by the API while any content item still uses it. */
+export async function deleteMedia(id: string): Promise<void> {
+  const res = await apiFetch(`/api/media/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await readError(res, `Failed to delete media (${res.status})`));
 }
 
 // --- Helpers ------------------------------------------------------------
@@ -348,6 +422,25 @@ export function parseFieldValues(dataJson: string | null | undefined): FieldValu
   } catch {
     return {};
   }
+}
+
+/**
+ * A human-readable label for an item: the value of its content type's first Text field,
+ * falling back to the slug. Used wherever an item has to be named rather than rendered —
+ * reference pickers, reference links, and card headings.
+ */
+export function itemLabel(
+  type: ContentType | null | undefined,
+  item: Pick<ContentItemSummary, "slug" | "dataJson">
+): string {
+  const headingField = type?.fields.find((f) => f.type === "Text");
+
+  if (headingField) {
+    const value = parseFieldValues(item.dataJson)[headingField.name];
+    if (typeof value === "string" && value.trim() !== "") return value;
+  }
+
+  return item.slug;
 }
 
 /**

@@ -32,6 +32,10 @@ export default function SessionBar() {
 
       <span style={statusBadge(session.role === "Admin" ? "Published" : "")}>{session.role}</span>
 
+      <Link to="/admin/media" style={ui.muted}>
+        Media
+      </Link>
+
       {session.role === "Admin" && (
         <Link to="/admin/users" style={ui.muted}>
           Users

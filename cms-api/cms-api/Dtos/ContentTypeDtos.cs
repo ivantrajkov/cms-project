@@ -1,6 +1,7 @@
 namespace cms_api.Dtos;
 
-public record FieldDefinitionDto(string Name, string Type, bool Required);
+/// <summary><c>TargetType</c> is the referenced content type's slug; null unless Type is Reference.</summary>
+public record FieldDefinitionDto(string Name, string Type, bool Required, string? TargetType = null);
 
 /// <summary>Lightweight projection returned by the list endpoint.</summary>
 public record ContentTypeSummaryDto(Guid Id, string Name, string Slug);

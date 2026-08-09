@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   getContentType,
+  itemLabel,
   listContentItems,
   parseFieldValues,
   type ContentItemSummary,
   type ContentType,
-  type FieldDefinition,
 } from "../lib/api";
+import { useFieldResolver } from "../lib/useFieldResolver";
+import ContentFieldValue from "./ContentFieldValue";
 
 interface Props {
   contentType: string;
@@ -63,6 +66,8 @@ export default function ContentListBlock({ contentType, columns, limit }: Props)
     };
   }, [contentType, limit]);
 
+  const lookups = useFieldResolver(loaded?.type?.fields);
+
   if (!contentType) return <Placeholder>Pick a content type in the right-hand panel</Placeholder>;
   if (!loaded || loaded.for !== contentType) return <Placeholder>Loading…</Placeholder>;
   if (loaded.error) return <Placeholder>{loaded.error}</Placeholder>;
@@ -102,16 +107,26 @@ export default function ContentListBlock({ contentType, columns, limit }: Props)
                 gap: 8,
               }}
             >
-              {headingField && (
-                <h3 style={{ margin: 0, fontSize: "1.1rem" }}>
-                  {String(values[headingField.name] ?? item.slug)}
-                </h3>
-              )}
+              {/* The heading links through to the item's own page, so a card is a way in
+                  rather than a dead end. */}
+              <h3 style={{ margin: 0, fontSize: "1.1rem" }}>
+                <Link
+                  to={`/${type.slug}/${item.slug}`}
+                  style={{ color: "inherit", textDecoration: "none" }}
+                >
+                  {itemLabel(type, item)}
+                </Link>
+              </h3>
 
               {fields
                 .filter((field) => field !== headingField)
                 .map((field) => (
-                  <FieldValue key={field.name} field={field} value={values[field.name]} />
+                  <ContentFieldValue
+                    key={field.name}
+                    field={field}
+                    value={values[field.name]}
+                    lookups={lookups}
+                  />
                 ))}
             </article>
           );
@@ -137,62 +152,4 @@ function Placeholder({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
-}
-
-/** True for a URL that points at an image, so photo fields render as pictures. */
-function looksLikeImage(value: string): boolean {
-  if (!/^https?:\/\//i.test(value)) return false;
-  return /\.(png|jpe?g|gif|webp|svg)(\?|#|$)/i.test(value) || value.includes("/uploads/");
-}
-
-function FieldValue({ field, value }: { field: FieldDefinition; value: unknown }) {
-  if (value === undefined || value === null || value === "") return null;
-
-  switch (field.type) {
-    case "Boolean":
-      // A false flag is noise in a card; only surface the ones that are set.
-      return value === true ? (
-        <span
-          style={{
-            justifySelf: "start",
-            fontSize: 12,
-            padding: "2px 8px",
-            borderRadius: 999,
-            background: "#dbeafe",
-            color: "#1e40af",
-          }}
-        >
-          {field.name}
-        </span>
-      ) : null;
-
-    case "Date": {
-      const parsed = new Date(String(value));
-      const text = Number.isNaN(parsed.getTime())
-        ? String(value)
-        : parsed.toLocaleDateString();
-      return <small style={{ color: "#6b7280" }}>{text}</small>;
-    }
-
-    case "Number":
-      return (
-        <small style={{ color: "#6b7280" }}>
-          {field.name}: {String(value)}
-        </small>
-      );
-
-    default: {
-      const text = String(value);
-      if (looksLikeImage(text)) {
-        return (
-          <img
-            src={text}
-            alt={field.name}
-            style={{ width: "100%", height: "auto", borderRadius: 6 }}
-          />
-        );
-      }
-      return <p style={{ margin: 0, lineHeight: 1.5 }}>{text}</p>;
-    }
-  }
 }

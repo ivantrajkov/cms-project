@@ -7,6 +7,10 @@ namespace cms_api.Services;
 /// Validates a <see cref="ContentItem"/>'s <c>DataJson</c> payload against its
 /// parent <see cref="ContentType"/>'s field schema — required fields must be
 /// present, and each present field's JSON value must match its declared type.
+///
+/// This checks <em>shape</em> only and is deliberately a pure function with no database
+/// access: whether an Image or Reference id actually exists is a separate question,
+/// answered by <see cref="ReferenceValidator"/>.
 /// </summary>
 public static class ContentItemValidator
 {
@@ -63,6 +67,11 @@ public static class ContentItemValidator
         FieldType.Boolean => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
         FieldType.Date => value.ValueKind == JsonValueKind.String && DateTime.TryParse(value.GetString(), out _),
         FieldType.Layout => value.ValueKind == JsonValueKind.Object,
+        // Both store an id; that the target exists is checked separately against the database.
+        FieldType.Image or FieldType.Reference => IsGuid(value),
         _ => false
     };
+
+    private static bool IsGuid(JsonElement value) =>
+        value.ValueKind == JsonValueKind.String && Guid.TryParse(value.GetString(), out _);
 }
