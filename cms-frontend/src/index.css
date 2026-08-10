@@ -1,17 +1,346 @@
+/*
+ * Design tokens and base element styles.
+ *
+ * The project deliberately has no CSS framework: instead of a utility library, a small
+ * set of custom properties defines the palette, radii and shadows once, and the base
+ * element rules below make an unstyled <input> or <h1> already look right. Component
+ * classes (.btn, .card, …) live in styles/components.css.
+ */
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  color: #111827;
+  /* --- Brand ---------------------------------------------------------- */
+  --brand-50: #f4f1fe;
+  --brand-100: #e9e3fd;
+  --brand-200: #d5cafc;
+  --brand-300: #b6a2f9;
+  --brand-400: #9573f4;
+  --brand-500: #6d3bf5;
+  --brand-600: #5b2adb;
+  --brand-700: #4a20b4;
+  --brand-800: #3a1a8c;
+
+  /* --- Neutrals ------------------------------------------------------- */
+  --gray-25: #fcfcfd;
+  --gray-50: #f7f7fa;
+  --gray-100: #f1f1f5;
+  --gray-200: #e5e5ec;
+  --gray-300: #d4d4de;
+  --gray-400: #a3a3b2;
+  --gray-500: #71717f;
+  --gray-600: #55555f;
+  --gray-700: #3e3e47;
+  --gray-800: #27272e;
+  --gray-900: #16161c;
+
+  /* --- Semantic ------------------------------------------------------- */
+  --success: #0e9f6e;
+  --success-soft: #e7f7f0;
+  --success-strong: #06603f;
+  --warning: #b45309;
+  --warning-soft: #fef4e6;
+  --danger: #dc2626;
+  --danger-soft: #fdeceb;
+  --danger-strong: #991b1b;
+
+  /* --- Roles ---------------------------------------------------------- */
+  --canvas: var(--gray-50);
+  --surface: #ffffff;
+  --surface-sunken: var(--gray-50);
+  --surface-hover: var(--gray-50);
+  --border: var(--gray-200);
+  --border-strong: var(--gray-300);
+  --text: var(--gray-900);
+  --text-secondary: var(--gray-600);
+  --text-muted: var(--gray-500);
+  --accent: var(--brand-500);
+  --accent-hover: var(--brand-600);
+  --accent-soft: var(--brand-50);
+
+  /* --- Shape ---------------------------------------------------------- */
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+
+  --shadow-xs: 0 1px 2px rgb(16 17 26 / 6%);
+  --shadow-sm: 0 1px 3px rgb(16 17 26 / 8%), 0 1px 2px rgb(16 17 26 / 4%);
+  --shadow-md: 0 4px 12px -2px rgb(16 17 26 / 10%), 0 2px 6px -2px rgb(16 17 26 / 6%);
+  --shadow-lg: 0 16px 40px -12px rgb(16 17 26 / 20%), 0 4px 12px -4px rgb(16 17 26 / 8%);
+  --ring: 0 0 0 3px rgb(109 59 245 / 22%);
+
+  /* --- Type ----------------------------------------------------------- */
+  --font-sans: "Inter", "Segoe UI Variable Text", "Segoe UI", -apple-system,
+    BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  /* --- Layout --------------------------------------------------------- */
+  --sidebar-width: 252px;
+  --topbar-height: 60px;
+  --content-width: 1080px;
+
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text);
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis-weight: none;
+}
+
+/* Puck ships its own theme; point its accent scale at the brand and its type at ours so
+   the visual editor does not read as a different product. Set on `body` rather than
+   `:root` so these win regardless of the order Vite emits the two stylesheets in. */
+body {
+  --puck-font-family: var(--font-sans);
+  --puck-font-family-monospaced: var(--font-mono);
+  --puck-color-azure-01: var(--brand-800);
+  --puck-color-azure-02: var(--brand-800);
+  --puck-color-azure-03: var(--brand-700);
+  --puck-color-azure-04: var(--brand-600);
+  --puck-color-azure-05: var(--brand-500);
+  --puck-color-azure-06: var(--brand-400);
+  --puck-color-azure-07: var(--brand-300);
+  --puck-color-azure-08: var(--brand-200);
+  --puck-color-azure-09: var(--brand-200);
+  --puck-color-azure-10: var(--brand-100);
+  --puck-color-azure-11: var(--brand-50);
+  --puck-color-azure-12: var(--brand-50);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
 body {
+  min-height: 100%;
+}
+
+/* White, not the app canvas: Puck copies this stylesheet into the preview iframe, and a
+   page being built should sit on the same white a visitor sees. The admin shell paints its
+   own canvas colour. */
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+/* --- Typography ------------------------------------------------------- */
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 640;
+  letter-spacing: -0.014em;
+  line-height: 1.25;
+  color: var(--text);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: 1.6rem;
+}
+
+h2 {
+  font-size: 1.15rem;
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+p {
   margin: 0;
 }
 
+small {
+  font-size: 0.8125rem;
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+/* Inline code reads as an identifier — slugs and field names are everywhere in this UI. */
+code {
+  padding: 0.12em 0.4em;
+  border-radius: var(--radius-sm);
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
 a {
-  color: #2563eb;
+  color: var(--accent);
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+
+a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+hr {
+  height: 1px;
+  margin: 28px 0;
+  border: 0;
+  background: var(--border);
+}
+
+/* --- Form controls ---------------------------------------------------- */
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 11px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--gray-400);
+}
+
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--gray-400);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--gray-100);
+  color: var(--text-muted);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Native chevron, drawn so the control matches the text inputs beside it. */
+select {
+  appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2371717f' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6.5 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  cursor: pointer;
+}
+
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+input[type="file"] {
+  max-width: 100%;
+}
+
+/* The default file button is the one control that always looks foreign. */
+input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 7px 12px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-xs);
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+input[type="file"]::file-selector-button:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* --- Focus ------------------------------------------------------------ */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* --- Scrollbars ------------------------------------------------------- */
+
+* {
+  scrollbar-color: var(--gray-300) transparent;
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gray-300);
+  border: 3px solid transparent;
+  border-radius: var(--radius-full);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-400);
+  background-clip: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

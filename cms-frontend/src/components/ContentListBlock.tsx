@@ -84,38 +84,20 @@ export default function ContentListBlock({ contentType, columns, limit }: Props)
   const headingField = fields.find((f) => f.type === "Text");
 
   return (
-    <div style={{ padding: "16px 24px", maxWidth: 960, margin: "0 auto" }}>
+    <div className="block">
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-          gap: 16,
-          alignItems: "start",
-        }}
+        className="content-list"
+        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
         {items.map((item) => {
           const values = parseFieldValues(item.dataJson);
 
           return (
-            <article
-              key={item.id}
-              style={{
-                border: "1px solid #e5e7eb",
-                borderRadius: 8,
-                padding: 16,
-                display: "grid",
-                gap: 8,
-              }}
-            >
+            <article className="content-card" key={item.id}>
               {/* The heading links through to the item's own page, so a card is a way in
                   rather than a dead end. */}
-              <h3 style={{ margin: 0, fontSize: "1.1rem" }}>
-                <Link
-                  to={`/${type.slug}/${item.slug}`}
-                  style={{ color: "inherit", textDecoration: "none" }}
-                >
-                  {itemLabel(type, item)}
-                </Link>
+              <h3>
+                <Link to={`/${type.slug}/${item.slug}`}>{itemLabel(type, item)}</Link>
               </h3>
 
               {fields
@@ -136,20 +118,11 @@ export default function ContentListBlock({ contentType, columns, limit }: Props)
   );
 }
 
+/** Stand-in shown in place of the list while it cannot be rendered. */
 function Placeholder({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ padding: "16px 24px", maxWidth: 960, margin: "0 auto" }}>
-      <div
-        style={{
-          padding: 40,
-          border: "2px dashed #d1d5db",
-          borderRadius: 8,
-          color: "#9ca3af",
-          textAlign: "center",
-        }}
-      >
-        {children}
-      </div>
+    <div className="block">
+      <div className="block-placeholder">{children}</div>
     </div>
   );
 }

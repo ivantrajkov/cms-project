@@ -1,17 +1,20 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import {
-  createUser,
-  deleteUser,
-  listUsers,
-  updateUser,
-  type UserSummary,
-} from "../lib/api";
+import { useEffect, useRef, useState } from "react";
+import { createUser, deleteUser, listUsers, updateUser, type UserSummary } from "../lib/api";
 import { getSession, type Role } from "../lib/auth";
-import SessionBar from "../components/SessionBar";
-import { ui } from "../lib/ui";
+import AppLayout from "../components/AppLayout";
+import PageHeader from "../components/PageHeader";
+import Alert from "../components/Alert";
+import Loading from "../components/Loading";
+import Icon from "../components/Icon";
+import { exactTime, relativeTime } from "../lib/ui";
 
 const ROLES: Role[] = ["Admin", "Editor", "Viewer"];
+
+const ROLE_HELP: Record<Role, string> = {
+  Admin: "Manages schemas, users and content.",
+  Editor: "Creates and edits content.",
+  Viewer: "Reads everything, including drafts, but changes nothing.",
+};
 
 /**
  * Admin-only user administration at /admin/users.
@@ -22,13 +25,14 @@ const ROLES: Role[] = ["Admin", "Editor", "Viewer"];
 export default function UsersPage() {
   const currentUser = getSession();
 
-  const [users, setUsers] = useState<UserSummary[]>([]);
+  const [users, setUsers] = useState<UserSummary[] | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("Editor");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const emailInput = useRef<HTMLInputElement>(null);
 
   async function refresh() {
     try {
@@ -46,7 +50,10 @@ export default function UsersPage() {
         const loaded = await listUsers();
         if (!cancelled) setUsers(loaded);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load users");
+        if (!cancelled) {
+          setUsers([]);
+          setError(err instanceof Error ? err.message : "Failed to load users");
+        }
       }
     })();
 
@@ -66,7 +73,7 @@ export default function UsersPage() {
       setEmail("");
       setPassword("");
       setRole("Editor");
-      setMessage("User created.");
+      setMessage(`Created ${email}.`);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create user");
@@ -115,112 +122,172 @@ export default function UsersPage() {
     }
   }
 
+  if (!users) {
+    return (
+      <AppLayout crumbs={[{ label: "Users" }]}>
+        <Loading label="Loading users…" />
+      </AppLayout>
+    );
+  }
+
   return (
-    <div style={ui.page}>
-      <SessionBar />
-
-      <Link to="/" style={{ ...ui.muted, textDecoration: "none" }}>
-        ← Dashboard
-      </Link>
-
-      <h1>Users</h1>
-      <p style={ui.muted}>
-        Admins manage schemas and users. Editors create and edit content. Viewers can read
-        everything, including drafts, but change nothing.
-      </p>
-
-      {error && <p style={ui.error}>{error}</p>}
-      {message && <p style={ui.muted}>{message}</p>}
-
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {users.map((user) => (
-          <li
-            key={user.id}
-            style={{
-              ...ui.card,
-              marginBottom: 8,
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
+    <AppLayout crumbs={[{ label: "Users" }]}>
+      <PageHeader
+        title="Users"
+        description="Admins manage schemas and users. Editors create and edit content. Viewers can read everything, including drafts, but change nothing."
+        actions={
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => emailInput.current?.focus()}
           >
-            <strong>{user.email}</strong>
-            {user.email === currentUser?.email && <span style={ui.muted}>(you)</span>}
+            <Icon name="plus" size={16} />
+            New user
+          </button>
+        }
+      />
 
-            <select
-              value={user.role}
-              onChange={(e) => handleRoleChange(user, e.target.value as Role)}
-              style={ui.input}
-            >
-              {ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
+      {error && <Alert tone="error">{error}</Alert>}
+      {message && <Alert tone="success">{message}</Alert>}
 
-            <button onClick={() => handlePasswordReset(user)} style={ui.secondaryButton}>
-              Reset password
-            </button>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th scope="col">User</th>
+              <th scope="col">Role</th>
+              <th scope="col">Created</th>
+              <th scope="col">
+                <span className="muted">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.id}>
+                <td>
+                  <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span className="avatar" aria-hidden="true">
+                      {user.email.slice(0, 1)}
+                    </span>
+                    <span>
+                      <span style={{ fontWeight: 560 }}>{user.email}</span>
+                      {user.email === currentUser?.email && (
+                        <span className="badge badge--brand" style={{ marginLeft: 8 }}>
+                          you
+                        </span>
+                      )}
+                    </span>
+                  </span>
+                </td>
 
-            <button
-              onClick={() => handleDelete(user)}
-              style={{ ...ui.secondaryButton, marginLeft: "auto" }}
-            >
-              Delete
-            </button>
-          </li>
-        ))}
-        {users.length === 0 && <li style={ui.muted}>No users loaded.</li>}
-      </ul>
+                <td className="is-tight">
+                  <select
+                    value={user.role}
+                    aria-label={`Role for ${user.email}`}
+                    title={ROLE_HELP[user.role]}
+                    onChange={(e) => handleRoleChange(user, e.target.value as Role)}
+                  >
+                    {ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </td>
 
-      <hr style={{ margin: "24px 0" }} />
+                <td className="is-tight muted" title={exactTime(user.createdAt)}>
+                  {relativeTime(user.createdAt)}
+                </td>
 
-      <h2>New user</h2>
-      <form onSubmit={handleCreate} style={{ display: "grid", gap: 12 }}>
-        <label style={{ display: "grid", gap: 4 }}>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={ui.input}
-          />
-        </label>
-
-        <label style={{ display: "grid", gap: 4 }}>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            minLength={8}
-            required
-            style={ui.input}
-          />
-        </label>
-
-        <label style={{ display: "grid", gap: 4 }}>
-          Role
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as Role)}
-            style={ui.input}
-          >
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
+                <td className="is-tight">
+                  <span className="btn-row">
+                    <button
+                      type="button"
+                      className="btn btn--secondary btn--sm"
+                      onClick={() => handlePasswordReset(user)}
+                    >
+                      <Icon name="key" size={15} />
+                      Reset password
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--icon"
+                      onClick={() => handleDelete(user)}
+                    >
+                      <Icon name="trash" size={16} label={`Delete ${user.email}`} />
+                    </button>
+                  </span>
+                </td>
+              </tr>
             ))}
-          </select>
-        </label>
 
-        <button type="submit" disabled={busy} style={{ ...ui.primaryButton, justifySelf: "start" }}>
-          {busy ? "Creating…" : "Create user"}
-        </button>
-      </form>
-    </div>
+            {users.length === 0 && (
+              <tr>
+                <td colSpan={4} className="muted">
+                  No users loaded.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <section className="card section">
+        <div className="card__header">
+          <span className="card__title">New user</span>
+          <span className="card__hint">{ROLE_HELP[role]}</span>
+        </div>
+
+        <form onSubmit={handleCreate}>
+          <div className="card__body">
+            <div className="form-grid">
+              <label className="field">
+                <span className="field__label">Email</span>
+                <input
+                  ref={emailInput}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="editor@example.com"
+                  autoComplete="off"
+                  required
+                />
+              </label>
+
+              <label className="field">
+                <span className="field__label">Password</span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  minLength={8}
+                  autoComplete="new-password"
+                  required
+                />
+                <span className="field__hint">At least 8 characters.</span>
+              </label>
+
+              <label className="field">
+                <span className="field__label">Role</span>
+                <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div className="card__footer">
+            <button type="submit" disabled={busy} className="btn btn--primary">
+              {busy ? "Creating…" : "Create user"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </AppLayout>
   );
 }

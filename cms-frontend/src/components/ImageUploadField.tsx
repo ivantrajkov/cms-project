@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { uploadImage } from "../lib/api";
+import Icon from "./Icon";
 
 interface Props {
   value: string;
@@ -14,6 +15,7 @@ interface Props {
 export default function ImageUploadField({ value, onChange, readOnly }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
@@ -30,13 +32,28 @@ export default function ImageUploadField({ value, onChange, readOnly }: Props) {
   }
 
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div className="picker">
       <input
+        ref={fileInput}
         type="file"
         accept="image/*"
+        hidden
         disabled={readOnly || uploading}
-        onChange={(e) => handleFile(e.target.files?.[0])}
+        onChange={(e) => {
+          handleFile(e.target.files?.[0]);
+          e.target.value = "";
+        }}
       />
+
+      <button
+        type="button"
+        className="btn btn--secondary btn--sm"
+        disabled={readOnly || uploading}
+        onClick={() => fileInput.current?.click()}
+      >
+        <Icon name="upload" size={15} />
+        {uploading ? "Uploading…" : "Upload image"}
+      </button>
 
       <input
         type="text"
@@ -44,24 +61,19 @@ export default function ImageUploadField({ value, onChange, readOnly }: Props) {
         value={value}
         readOnly={readOnly}
         onChange={(e) => onChange(e.target.value)}
-        style={{ padding: "6px 8px" }}
       />
 
-      {uploading && <small>Uploading…</small>}
-      {error && <small style={{ color: "#dc2626" }}>{error}</small>}
+      {error && (
+        <small className="status-note status-note--error">
+          <Icon name="alert" size={14} />
+          {error}
+        </small>
+      )}
 
       {value && !uploading && (
-        <img
-          src={value}
-          alt="preview"
-          style={{
-            maxWidth: "100%",
-            maxHeight: 120,
-            objectFit: "contain",
-            border: "1px solid #e5e7eb",
-            borderRadius: 6,
-          }}
-        />
+        <div className="picker__preview">
+          <img src={value} alt="preview" />
+        </div>
       )}
     </div>
   );

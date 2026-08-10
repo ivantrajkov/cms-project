@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   deleteContentType,
   FIELD_TYPES,
+  listContentItems,
   listContentTypes,
   saveContentType,
   type ContentTypeSummary,
@@ -10,32 +11,62 @@ import {
   type FieldType,
 } from "../lib/api";
 import { canManageSchema } from "../lib/auth";
-import SessionBar from "../components/SessionBar";
-import { slugify, ui } from "../lib/ui";
+import AppLayout from "../components/AppLayout";
+import PageHeader from "../components/PageHeader";
+import EmptyState from "../components/EmptyState";
+import Alert from "../components/Alert";
+import Loading from "../components/Loading";
+import Icon from "../components/Icon";
+import { slugify } from "../lib/ui";
 
 const emptyField: FieldDefinition = { name: "", type: "Text", required: false };
+
+/**
+ * The types plus how many items each one holds. The count needs a request per type because
+ * the list endpoint does not report it — acceptable for the handful of types a CMS has, and
+ * it is the number that tells an admin whether a type is safe to delete. A type whose items
+ * cannot be listed counts as 0 rather than failing the whole screen.
+ */
+async function loadTypesWithCounts(): Promise<{
+  types: ContentTypeSummary[];
+  counts: Record<string, number>;
+}> {
+  const types = await listContentTypes();
+
+  const counts = await Promise.all(
+    types.map(async (type) => {
+      try {
+        return [type.slug, (await listContentItems(type.slug)).length] as const;
+      } catch {
+        return [type.slug, 0] as const;
+      }
+    })
+  );
+
+  return { types, counts: Object.fromEntries(counts) };
+}
 
 /**
  * Admin screen at /admin/content-types — defines the schemas that content items
  * are validated against, so new kinds of content can be added without a code change.
  */
 export default function ContentTypesPage() {
-  const [types, setTypes] = useState<ContentTypeSummary[]>([]);
+  const [types, setTypes] = useState<ContentTypeSummary[] | null>(null);
+  const [itemCounts, setItemCounts] = useState<Record<string, number>>({});
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
   const [fields, setFields] = useState<FieldDefinition[]>([{ ...emptyField }]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const nameInput = useRef<HTMLInputElement>(null);
   // Schema changes affect every existing item of a type, so they are Admin-only.
   const mayManage = canManageSchema();
 
   async function refresh() {
-    try {
-      setTypes(await listContentTypes());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load content types");
-    }
+    const loaded = await loadTypesWithCounts();
+    setTypes(loaded.types);
+    setItemCounts(loaded.counts);
   }
 
   useEffect(() => {
@@ -43,10 +74,15 @@ export default function ContentTypesPage() {
 
     (async () => {
       try {
-        const loaded = await listContentTypes();
-        if (!cancelled) setTypes(loaded);
+        const loaded = await loadTypesWithCounts();
+        if (cancelled) return;
+        setTypes(loaded.types);
+        setItemCounts(loaded.counts);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load content types");
+        if (!cancelled) {
+          setTypes([]);
+          setError(err instanceof Error ? err.message : "Failed to load content types");
+        }
       }
     })();
 
@@ -96,166 +132,217 @@ export default function ContentTypesPage() {
     }
   }
 
+  if (!types) {
+    return (
+      <AppLayout crumbs={[{ label: "Content types" }]}>
+        <Loading label="Loading content types…" />
+      </AppLayout>
+    );
+  }
+
   return (
-    <div style={ui.page}>
-      <SessionBar />
+    <AppLayout crumbs={[{ label: "Content types" }]}>
+      <PageHeader
+        title="Content types"
+        description="A content type is a schema: a named set of typed fields. Items of that type are validated against it when they are saved."
+        actions={
+          mayManage ? (
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => nameInput.current?.focus()}
+            >
+              <Icon name="plus" size={16} />
+              New content type
+            </button>
+          ) : (
+            <span className="status-note">
+              <Icon name="alert" size={15} />
+              Only an Admin can change schemas
+            </span>
+          )
+        }
+      />
 
-      <Link to="/" style={{ ...ui.muted, textDecoration: "none" }}>
-        ← Dashboard
-      </Link>
+      {error && <Alert tone="error">{error}</Alert>}
 
-      <h1>Content types</h1>
-      <p style={ui.muted}>
-        A content type is a schema: a named set of typed fields. Items of that type are
-        validated against it when they are saved.
-        {!mayManage && " Only an Admin can create or delete them."}
-      </p>
+      {types.length === 0 ? (
+        <EmptyState
+          title="No content types yet"
+          icon="layers"
+          description="Define a schema — for example a Blog Post with a title, body and cover image — and the CMS generates an editor for it."
+        />
+      ) : (
+        <div className="card-grid">
+          {types.map((type) => (
+            <article className="type-card" key={type.id}>
+              <div className="type-card__head">
+                <Link to={`/admin/content-types/${type.slug}`} className="type-card__name">
+                  {type.name}
+                </Link>
+                {mayManage && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--icon"
+                    style={{ marginLeft: "auto" }}
+                    onClick={() => handleDelete(type.slug)}
+                  >
+                    <Icon name="trash" size={16} label={`Delete ${type.name}`} />
+                  </button>
+                )}
+              </div>
 
-      {error && <p style={ui.error}>{error}</p>}
+              <span className="chip">
+                <code>{type.slug}</code>
+              </span>
 
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {types.map((type) => (
-          <li
-            key={type.id}
-            style={{
-              ...ui.card,
-              marginBottom: 8,
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-            }}
-          >
-            <Link to={`/admin/content-types/${type.slug}`} style={{ fontWeight: 600 }}>
-              {type.name}
-            </Link>
-            <code style={ui.muted}>{type.slug}</code>
-            {mayManage && (
-              <button
-                onClick={() => handleDelete(type.slug)}
-                style={{ ...ui.secondaryButton, marginLeft: "auto" }}
-              >
-                Delete
-              </button>
-            )}
-          </li>
-        ))}
-        {types.length === 0 && <li style={ui.muted}>No content types yet.</li>}
-      </ul>
-
-      {!mayManage ? null : (
-        <>
-      <hr style={{ margin: "24px 0" }} />
-
-      <h2>New content type</h2>
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
-        <label style={{ display: "grid", gap: 4 }}>
-          Name
-          <input
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (!slugEdited) setSlug(slugify(e.target.value));
-            }}
-            placeholder="Blog Post"
-            style={ui.input}
-          />
-        </label>
-
-        <label style={{ display: "grid", gap: 4 }}>
-          Slug
-          <input
-            value={slug}
-            onChange={(e) => {
-              setSlug(e.target.value);
-              setSlugEdited(true);
-            }}
-            placeholder="blog-post"
-            style={ui.input}
-          />
-        </label>
-
-        <fieldset style={{ ...ui.card, display: "grid", gap: 8 }}>
-          <legend>Fields</legend>
-
-          {fields.map((field, index) => (
-            <div key={index} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                value={field.name}
-                onChange={(e) => updateField(index, { name: e.target.value })}
-                placeholder="field name"
-                style={{ ...ui.input, flex: 1 }}
-              />
-
-              <select
-                value={field.type}
-                onChange={(e) => {
-                  const type = e.target.value as FieldType;
-                  // A target only applies to Reference; drop it when switching away so the
-                  // schema never carries a stale pointer.
-                  updateField(index, {
-                    type,
-                    targetType: type === "Reference" ? field.targetType ?? "" : null,
-                  });
-                }}
-                style={ui.input}
-              >
-                {FIELD_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-
-              {field.type === "Reference" && (
-                <select
-                  value={field.targetType ?? ""}
-                  onChange={(e) => updateField(index, { targetType: e.target.value })}
-                  style={ui.input}
-                >
-                  <option value="">points at…</option>
-                  {types.map((t) => (
-                    <option key={t.id} value={t.slug}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              <label style={{ display: "flex", gap: 4, alignItems: "center", ...ui.muted }}>
-                <input
-                  type="checkbox"
-                  checked={field.required}
-                  onChange={(e) => updateField(index, { required: e.target.checked })}
-                />
-                required
-              </label>
-
-              <button
-                type="button"
-                onClick={() => setFields((current) => current.filter((_, i) => i !== index))}
-                disabled={fields.length === 1}
-                style={ui.secondaryButton}
-              >
-                ✕
-              </button>
-            </div>
+              <div className="row__meta">
+                <span>
+                  {itemCounts[type.slug] ?? 0} item
+                  {itemCounts[type.slug] === 1 ? "" : "s"}
+                </span>
+                <Link to={`/admin/content-types/${type.slug}`}>
+                  Manage
+                  <Icon name="chevronRight" size={13} />
+                </Link>
+              </div>
+            </article>
           ))}
-
-          <button
-            type="button"
-            onClick={() => setFields((current) => [...current, { ...emptyField }])}
-            style={{ ...ui.secondaryButton, justifySelf: "start" }}
-          >
-            + Add field
-          </button>
-        </fieldset>
-
-        <button type="submit" disabled={saving} style={{ ...ui.primaryButton, justifySelf: "start" }}>
-          {saving ? "Saving…" : "Create content type"}
-        </button>
-      </form>
-        </>
+        </div>
       )}
-    </div>
+
+      {mayManage && (
+        <section className="card section">
+          <div className="card__header">
+            <span className="card__title">New content type</span>
+            <span className="card__hint">Saving an existing slug updates that type's schema.</span>
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            <div className="card__body form">
+              <div className="form-grid">
+                <label className="field">
+                  <span className="field__label">Name</span>
+                  <input
+                    ref={nameInput}
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (!slugEdited) setSlug(slugify(e.target.value));
+                    }}
+                    placeholder="Blog Post"
+                  />
+                </label>
+
+                <label className="field">
+                  <span className="field__label">Slug</span>
+                  <input
+                    value={slug}
+                    onChange={(e) => {
+                      setSlug(e.target.value);
+                      setSlugEdited(true);
+                    }}
+                    placeholder="blog-post"
+                  />
+                  <span className="field__hint">Used in URLs and in the API path.</span>
+                </label>
+              </div>
+
+              <fieldset className="field">
+                <span className="field__label">Fields</span>
+
+                {fields.map((field, index) => (
+                  <div
+                    key={index}
+                    className={`field-row${field.type === "Reference" ? " field-row--reference" : ""}`}
+                  >
+                    <input
+                      value={field.name}
+                      onChange={(e) => updateField(index, { name: e.target.value })}
+                      placeholder="field name"
+                      aria-label={`Field ${index + 1} name`}
+                    />
+
+                    <select
+                      value={field.type}
+                      aria-label={`Field ${index + 1} type`}
+                      onChange={(e) => {
+                        const type = e.target.value as FieldType;
+                        // A target only applies to Reference; drop it when switching away so
+                        // the schema never carries a stale pointer.
+                        updateField(index, {
+                          type,
+                          targetType: type === "Reference" ? field.targetType ?? "" : null,
+                        });
+                      }}
+                    >
+                      {FIELD_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+
+                    {field.type === "Reference" && (
+                      <select
+                        value={field.targetType ?? ""}
+                        aria-label={`Field ${index + 1} target type`}
+                        onChange={(e) => updateField(index, { targetType: e.target.value })}
+                      >
+                        <option value="">points at…</option>
+                        {types.map((t) => (
+                          <option key={t.id} value={t.slug}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    <label className="field--check">
+                      <input
+                        type="checkbox"
+                        checked={field.required}
+                        onChange={(e) => updateField(index, { required: e.target.checked })}
+                      />
+                      required
+                    </label>
+
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--icon"
+                      onClick={() =>
+                        setFields((current) => current.filter((_, i) => i !== index))
+                      }
+                      disabled={fields.length === 1}
+                    >
+                      <Icon name="trash" size={16} label={`Remove field ${index + 1}`} />
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  style={{ justifySelf: "start" }}
+                  onClick={() => setFields((current) => [...current, { ...emptyField }])}
+                >
+                  <Icon name="plus" size={15} />
+                  Add field
+                </button>
+              </fieldset>
+            </div>
+
+            <div className="card__footer">
+              <button type="submit" disabled={saving} className="btn btn--primary">
+                {saving ? "Saving…" : "Create content type"}
+              </button>
+              <span className="card__hint">
+                A Layout field turns the item editor into the visual page builder.
+              </span>
+            </div>
+          </form>
+        </section>
+      )}
+    </AppLayout>
   );
 }

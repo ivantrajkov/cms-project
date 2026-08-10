@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Render, type Data } from "@measured/puck";
 import "@measured/puck/puck.css";
 import { config } from "../puck.config";
@@ -10,6 +10,8 @@ import {
   parseFieldValues,
   toPuckData,
 } from "../lib/api";
+import Loading from "../components/Loading";
+import NotFound from "../components/NotFound";
 
 type LoadState =
   | { status: "loading" }
@@ -66,30 +68,27 @@ export default function LivePage() {
   const editLink = `/admin/content-types/${PAGE_TYPE_SLUG}/items/${slug}`;
 
   // Stale results from a previous slug stay hidden until the new one resolves.
-  if (state.status === "loading" || state.slug !== slug)
-    return <p style={{ padding: 24 }}>Loading…</p>;
+  if (state.status === "loading" || state.slug !== slug) return <Loading />;
 
   if (state.status === "draft") {
     return (
-      <div style={{ padding: 24 }}>
-        <h1>404 — page not found</h1>
-        <p>
-          The page at <code>/{slug}</code> is still a draft.{" "}
-          <Link to={editLink}>Open it in the editor →</Link>
-        </p>
-      </div>
+      <NotFound
+        code="404 — page not found"
+        title={`/${slug} is still a draft`}
+        text="Publish it in the editor to make it part of the public site."
+        action={{ to: editLink, label: "Open in the editor" }}
+      />
     );
   }
 
   if (state.status === "notfound") {
     return (
-      <div style={{ padding: 24 }}>
-        <h1>404 — page not found</h1>
-        <p>
-          No page exists at <code>/{slug}</code>.{" "}
-          <Link to={editLink}>Create it →</Link>
-        </p>
-      </div>
+      <NotFound
+        code="404 — page not found"
+        title={`No page exists at /${slug}`}
+        text="Nothing has been published at this address yet."
+        action={{ to: editLink, label: "Create this page" }}
+      />
     );
   }
 

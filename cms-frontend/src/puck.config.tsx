@@ -8,6 +8,20 @@ import ContentListBlock from "./components/ContentListBlock";
  * Puck turns them into components you render, so blocks can be nested and laid
  * out horizontally (e.g. two Buttons inside one Grid row).
  */
+/**
+ * Blocks are styled with literal values rather than the admin's CSS custom properties: what
+ * they render is the published site, which should not change appearance if the admin theme
+ * does. The values match the palette in index.css so the two still look related.
+ */
+const site = {
+  ink: "#16161c",
+  inkSoft: "#3e3e47",
+  brand: "#6d3bf5",
+  brandDark: "#4a20b4",
+  line: "#e5e5ec",
+  faint: "#a3a3b2",
+} as const;
+
 export interface Props {
   HeroBanner: { title: string; subtitle: string };
   TextBlock: { content: string };
@@ -42,14 +56,37 @@ export const config: Config<Props> = {
       render: ({ title, subtitle }) => (
         <section
           style={{
-            padding: "64px 24px",
+            padding: "88px 24px",
             textAlign: "center",
-            background: "#111827",
+            // Two soft highlights over a near-black base, so the band reads as designed
+            // rather than as a flat rectangle.
+            background: `radial-gradient(900px 420px at 20% -10%, rgb(109 59 245 / 55%), transparent 60%),
+                         radial-gradient(700px 360px at 85% 110%, rgb(71 191 255 / 30%), transparent 60%),
+                         ${site.ink}`,
             color: "#fff",
           }}
         >
-          <h1 style={{ margin: 0, fontSize: "2.5rem" }}>{title}</h1>
-          <p style={{ marginTop: 12, fontSize: "1.25rem", opacity: 0.85 }}>
+          <h1
+            style={{
+              margin: "0 auto",
+              maxWidth: 18 + "ch",
+              // Scales with the viewport instead of overflowing a phone screen.
+              fontSize: "clamp(2rem, 5.5vw, 3.25rem)",
+              lineHeight: 1.1,
+              letterSpacing: "-0.03em",
+            }}
+          >
+            {title}
+          </h1>
+          <p
+            style={{
+              margin: "16px auto 0",
+              maxWidth: "52ch",
+              fontSize: "clamp(1rem, 2vw, 1.2rem)",
+              lineHeight: 1.6,
+              opacity: 0.78,
+            }}
+          >
             {subtitle}
           </p>
         </section>
@@ -70,7 +107,9 @@ export const config: Config<Props> = {
             padding: "24px",
             maxWidth: 720,
             margin: "0 auto",
-            lineHeight: 1.6,
+            color: site.inkSoft,
+            fontSize: "1.05rem",
+            lineHeight: 1.7,
             whiteSpace: "pre-wrap",
           }}
         >
@@ -121,16 +160,18 @@ export const config: Config<Props> = {
                 width: width ? `${width}px` : "auto",
                 maxWidth: "100%",
                 height: "auto",
-                borderRadius: 8,
+                borderRadius: 12,
+                boxShadow: "0 12px 32px -12px rgb(16 17 26 / 25%)",
               }}
             />
           ) : (
             <div
               style={{
                 padding: 40,
-                border: "2px dashed #d1d5db",
-                borderRadius: 8,
-                color: "#9ca3af",
+                border: `1px dashed ${site.line}`,
+                borderRadius: 12,
+                color: site.faint,
+                fontSize: "0.9rem",
               }}
             >
               Select an image in the right-hand panel
@@ -165,12 +206,13 @@ export const config: Config<Props> = {
             href={url}
             style={{
               display: "inline-block",
-              padding: "12px 24px",
-              background: "#2563eb",
+              padding: "13px 26px",
+              background: `linear-gradient(180deg, ${site.brand}, ${site.brandDark})`,
               color: "#fff",
-              borderRadius: 8,
+              borderRadius: 10,
               textDecoration: "none",
               fontWeight: 600,
+              boxShadow: "0 8px 20px -8px rgb(109 59 245 / 60%)",
             }}
           >
             {label}
@@ -285,14 +327,16 @@ export const config: Config<Props> = {
       render: ({ companyName, text, items: Items }) => (
         <footer
           style={{
-            background: "#111827",
-            color: "#e5e7eb",
-            padding: "40px 24px",
+            background: site.ink,
+            color: "#e5e5ec",
+            padding: "48px 24px",
             marginTop: 40,
           }}
         >
           <div style={{ maxWidth: 960, margin: "0 auto" }}>
-            <strong style={{ fontSize: "1.25rem", color: "#fff" }}>
+            <strong
+              style={{ fontSize: "1.2rem", color: "#fff", letterSpacing: "-0.02em" }}
+            >
               {companyName}
             </strong>
             {/* Nested slot: drop a Grid or Buttons here for footer links/columns. */}

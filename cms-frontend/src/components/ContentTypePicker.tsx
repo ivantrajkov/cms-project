@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { listContentTypes, type ContentTypeSummary } from "../lib/api";
+import Icon from "./Icon";
 
 interface Props {
   value: string;
@@ -34,13 +35,8 @@ export default function ContentTypePicker({ value, onChange, readOnly }: Props) 
   }, []);
 
   return (
-    <div style={{ display: "grid", gap: 4 }}>
-      <select
-        value={value}
-        disabled={readOnly}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ padding: "6px 8px" }}
-      >
+    <div className="picker">
+      <select value={value} disabled={readOnly} onChange={(e) => onChange(e.target.value)}>
         <option value="">Select a content type…</option>
         {types.map((type) => (
           <option key={type.id} value={type.slug}>
@@ -49,7 +45,12 @@ export default function ContentTypePicker({ value, onChange, readOnly }: Props) 
         ))}
       </select>
 
-      {error && <small style={{ color: "#dc2626" }}>{error}</small>}
+      {error && (
+        <small className="status-note status-note--error">
+          <Icon name="alert" size={14} />
+          {error}
+        </small>
+      )}
     </div>
   );
 }

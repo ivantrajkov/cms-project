@@ -70,10 +70,10 @@ public class ContentItemsController(
 
         var items = includeData
             ? await query
-                .Select(i => new ContentItemListDto(i.Id, i.Slug, i.Status.ToString(), i.DataJson))
+                .Select(i => new ContentItemListDto(i.Id, i.Slug, i.Status.ToString(), i.DataJson, i.UpdatedAt))
                 .ToListAsync()
             : await query
-                .Select(i => new ContentItemListDto(i.Id, i.Slug, i.Status.ToString(), null))
+                .Select(i => new ContentItemListDto(i.Id, i.Slug, i.Status.ToString(), null, i.UpdatedAt))
                 .ToListAsync();
 
         return Ok(items);
@@ -212,5 +212,5 @@ public class ContentItemsController(
     }
 
     private static ContentItemDto ToDto(ContentItem item) =>
-        new(item.Id, item.Slug, item.Status.ToString(), item.DataJson);
+        new(item.Id, item.Slug, item.Status.ToString(), item.DataJson, item.UpdatedAt);
 }

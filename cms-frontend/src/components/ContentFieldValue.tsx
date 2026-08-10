@@ -29,25 +29,20 @@ export default function ContentFieldValue({ field, value, lookups, detail }: Pro
       if (!asset) return null;
       return (
         <img
+          className="content-image"
           src={asset.url}
           alt={asset.altText || field.name}
-          style={{
-            width: "100%",
-            maxWidth: detail ? 640 : undefined,
-            height: "auto",
-            borderRadius: 6,
-          }}
+          style={{ maxWidth: detail ? 640 : undefined }}
         />
       );
     }
 
     case "Reference": {
       const target = lookups.references.get(String(value));
-      if (!target) return <small style={{ color: "#6b7280" }}>{field.name}: —</small>;
+      if (!target) return <small className="muted">{field.name}: —</small>;
       return (
-        <small style={{ color: "#6b7280" }}>
-          {field.name}:{" "}
-          <Link to={`/${target.typeSlug}/${target.slug}`}>{target.label}</Link>
+        <small className="muted">
+          {field.name}: <Link to={`/${target.typeSlug}/${target.slug}`}>{target.label}</Link>
         </small>
       );
     }
@@ -55,16 +50,7 @@ export default function ContentFieldValue({ field, value, lookups, detail }: Pro
     case "Boolean":
       // A false flag is noise; only surface the ones that are set.
       return value === true ? (
-        <span
-          style={{
-            justifySelf: "start",
-            fontSize: 12,
-            padding: "2px 8px",
-            borderRadius: 999,
-            background: "#dbeafe",
-            color: "#1e40af",
-          }}
-        >
+        <span className="badge badge--brand" style={{ justifySelf: "start" }}>
           {field.name}
         </span>
       ) : null;
@@ -72,12 +58,12 @@ export default function ContentFieldValue({ field, value, lookups, detail }: Pro
     case "Date": {
       const parsed = new Date(String(value));
       const text = Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleDateString();
-      return <small style={{ color: "#6b7280" }}>{text}</small>;
+      return <small className="muted">{text}</small>;
     }
 
     case "Number":
       return (
-        <small style={{ color: "#6b7280" }}>
+        <small className="muted">
           {field.name}: {String(value)}
         </small>
       );
@@ -87,13 +73,14 @@ export default function ContentFieldValue({ field, value, lookups, detail }: Pro
       if (looksLikeImage(text)) {
         return (
           <img
+            className="content-image"
             src={text}
             alt={field.name}
-            style={{ width: "100%", maxWidth: detail ? 640 : undefined, height: "auto", borderRadius: 6 }}
+            style={{ maxWidth: detail ? 640 : undefined }}
           />
         );
       }
-      return <p style={{ margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{text}</p>;
+      return <p className="content-text">{text}</p>;
     }
   }
 }
