@@ -80,6 +80,8 @@ export interface ContentItemSummary {
   status: ContentItemStatus;
   /** Only populated when the item was listed with `includeData`. */
   dataJson: string | null;
+  /** UTC ISO timestamp of the last save. */
+  updatedAt: string;
 }
 
 export interface ListContentItemsOptions {
@@ -95,6 +97,8 @@ export interface ContentItem {
   status: ContentItemStatus;
   /** Stringified JSON object whose keys match the content type's field names. */
   dataJson: string;
+  /** UTC ISO timestamp of the last save. */
+  updatedAt: string;
 }
 
 export interface SaveContentItemRequest {

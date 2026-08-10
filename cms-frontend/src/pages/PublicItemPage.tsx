@@ -14,7 +14,9 @@ import {
 } from "../lib/api";
 import { useFieldResolver } from "../lib/useFieldResolver";
 import ContentFieldValue from "../components/ContentFieldValue";
-import { ui } from "../lib/ui";
+import Loading from "../components/Loading";
+import NotFound from "../components/NotFound";
+import Icon from "../components/Icon";
 
 interface Loaded {
   /** "typeSlug/itemSlug" this data belongs to, so a stale render is never shown. */
@@ -59,18 +61,18 @@ export default function PublicItemPage() {
 
   const lookups = useFieldResolver(loaded?.type?.fields);
 
-  if (!loaded || loaded.for !== key) return <p style={{ padding: 24 }}>Loading…</p>;
+  if (!loaded || loaded.for !== key) return <Loading />;
 
   const { type, item } = loaded;
 
   if (!type || !item) {
     return (
-      <div style={{ padding: 24 }}>
-        <h1>404 — not found</h1>
-        <p>
-          Nothing published at <code>/{typeSlug}/{itemSlug}</code>.
-        </p>
-      </div>
+      <NotFound
+        code="404 — not found"
+        title="Nothing published here"
+        text={`No published item at /${typeSlug}/${itemSlug}.`}
+        action={{ to: "/", label: "Go to the dashboard" }}
+      />
     );
   }
 
@@ -86,11 +88,11 @@ export default function PublicItemPage() {
   const headingField = fields.find((f) => f.type === "Text");
 
   return (
-    <article style={ui.page}>
-      <p style={ui.muted}>{type.name}</p>
-      <h1 style={{ marginTop: 0 }}>{itemLabel(type, item)}</h1>
+    <article className="public">
+      <span className="eyebrow">{type.name}</span>
+      <h1>{itemLabel(type, item)}</h1>
 
-      <div style={{ display: "grid", gap: 12 }}>
+      <div className="public__body">
         {fields
           .filter((field) => field !== headingField)
           .map((field) => (
@@ -104,11 +106,12 @@ export default function PublicItemPage() {
           ))}
       </div>
 
-      <p style={{ marginTop: 32 }}>
-        <Link to="/" style={ui.muted}>
-          ← Home
+      <footer className="public__footer">
+        <Link to="/" className="btn btn--secondary btn--sm">
+          <Icon name="arrowLeft" size={15} />
+          Home
         </Link>
-      </p>
+      </footer>
     </article>
   );
 }

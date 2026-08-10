@@ -6,7 +6,7 @@ import {
   type ContentItemSummary,
   type ContentType,
 } from "../lib/api";
-import { ui } from "../lib/ui";
+import Icon from "./Icon";
 
 interface Props {
   /** Slug of the content type this field points at. */
@@ -54,18 +54,32 @@ export default function ReferencePickerField({ targetType, value, onChange, disa
     };
   }, [targetType]);
 
-  if (!targetType) return <small style={ui.error}>This field has no target content type.</small>;
-  if (loadedFor !== targetType) return <small style={ui.muted}>Loading…</small>;
+  if (!targetType) {
+    return (
+      <small className="status-note status-note--error">
+        <Icon name="alert" size={14} />
+        This field has no target content type.
+      </small>
+    );
+  }
+
+  if (loadedFor !== targetType) {
+    return (
+      <small className="status-note">
+        <span className="spinner" style={{ width: 13, height: 13 }} aria-hidden="true" />
+        Loading…
+      </small>
+    );
+  }
 
   const selectedMissing = value !== "" && !items.some((i) => i.id === value);
 
   return (
-    <div style={{ display: "grid", gap: 4 }}>
+    <div className="picker">
       <select
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)}
-        style={ui.input}
       >
         <option value="">Nothing selected</option>
         {items.map((item) => (
@@ -76,8 +90,19 @@ export default function ReferencePickerField({ targetType, value, onChange, disa
         ))}
       </select>
 
-      {error && <small style={ui.error}>{error}</small>}
-      {selectedMissing && <small style={ui.error}>Referenced item no longer exists.</small>}
+      {error && (
+        <small className="status-note status-note--error">
+          <Icon name="alert" size={14} />
+          {error}
+        </small>
+      )}
+
+      {selectedMissing && (
+        <small className="status-note status-note--error">
+          <Icon name="alert" size={14} />
+          Referenced item no longer exists.
+        </small>
+      )}
     </div>
   );
 }

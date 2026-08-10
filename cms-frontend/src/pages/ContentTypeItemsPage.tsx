@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   deleteContentItem,
@@ -9,8 +9,14 @@ import {
   type ContentType,
 } from "../lib/api";
 import { canEditContent } from "../lib/auth";
-import SessionBar from "../components/SessionBar";
-import { slugify, statusBadge, ui } from "../lib/ui";
+import AppLayout from "../components/AppLayout";
+import PageHeader from "../components/PageHeader";
+import EmptyState from "../components/EmptyState";
+import Alert from "../components/Alert";
+import Loading from "../components/Loading";
+import Icon from "../components/Icon";
+import NotFound from "../components/NotFound";
+import { exactTime, relativeTime, slugify, statusClass } from "../lib/ui";
 
 /** Admin screen at /admin/content-types/:typeSlug — lists every item of one content type. */
 export default function ContentTypeItemsPage() {
@@ -19,6 +25,7 @@ export default function ContentTypeItemsPage() {
   const [items, setItems] = useState<ContentItemSummary[]>([]);
   const [newSlug, setNewSlug] = useState("");
   const [error, setError] = useState("");
+  const slugInput = useRef<HTMLInputElement>(null);
   const mayEdit = canEditContent();
   // Which type the loaded data belongs to. Comparing it against the current route
   // param shows the loading state on navigation without resetting state in an effect.
@@ -76,103 +83,179 @@ export default function ContentTypeItemsPage() {
     }
   }
 
-  if (loading) return <p style={{ padding: 24 }}>Loading…</p>;
-
-  if (!type) {
+  if (loading) {
     return (
-      <div style={ui.page}>
-        <h1>Content type not found</h1>
-        <p>
-          No content type exists at <code>{typeSlug}</code>.{" "}
-          <Link to="/admin/content-types">Back to content types →</Link>
-        </p>
-      </div>
+      <AppLayout crumbs={[{ label: "Content types", to: "/admin/content-types" }]}>
+        <Loading />
+      </AppLayout>
     );
   }
 
+  if (!type) {
+    return (
+      <NotFound
+        code="Content type not found"
+        title={`No content type at /${typeSlug}`}
+        text="It may have been renamed or deleted."
+        action={{ to: "/admin/content-types", label: "Back to content types" }}
+      />
+    );
+  }
+
+  const targetSlug = slugify(newSlug);
+  const recent = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const singular = type.name.toLowerCase();
+
   return (
-    <div style={ui.page}>
-      <SessionBar />
-
-      <Link to="/admin/content-types" style={{ ...ui.muted, textDecoration: "none" }}>
-        ← Content types
-      </Link>
-
-      <h1>{type.name}</h1>
-      <p style={ui.muted}>
-        Fields:{" "}
-        {type.fields.length === 0
-          ? "none"
-          : type.fields
-              .map((f) => `${f.name} (${f.type}${f.required ? ", required" : ""})`)
-              .join(", ")}
-      </p>
-
-      {error && <p style={ui.error}>{error}</p>}
-
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {items.map((item) => (
-          <li
-            key={item.id}
-            style={{
-              ...ui.card,
-              marginBottom: 8,
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-            }}
-          >
-            <Link
-              to={`/admin/content-types/${typeSlug}/items/${item.slug}`}
-              style={{ fontWeight: 600 }}
+    <AppLayout
+      crumbs={[{ label: "Content types", to: "/admin/content-types" }, { label: type.name }]}
+    >
+      <PageHeader
+        eyebrow="Content type"
+        title={type.name}
+        description={
+          type.fields.length === 0
+            ? "This type has no fields yet — add some on the content types screen."
+            : "Items of this type are validated against the fields below."
+        }
+        actions={
+          mayEdit ? (
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => slugInput.current?.focus()}
             >
-              {item.slug}
-            </Link>
+              <Icon name="plus" size={16} />
+              New {singular}
+            </button>
+          ) : null
+        }
+      />
 
-            <span style={statusBadge(item.status)}>{item.status}</span>
+      {type.fields.length > 0 && (
+        <div className="btn-row" style={{ marginBottom: 22 }}>
+          {type.fields.map((field) => (
+            <span className="chip" key={field.name}>
+              {field.name}
+              <span className="field__type">{field.type}</span>
+              {field.required && (
+                <span className="required-dot" title="Required">
+                  *
+                </span>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
 
-            {typeSlug === PAGE_TYPE_SLUG && (
-              <Link to={`/${item.slug}`} style={ui.muted}>
-                view live
-              </Link>
-            )}
+      {error && <Alert tone="error">{error}</Alert>}
 
-            {mayEdit && (
-              <button
-                onClick={() => handleDelete(item.slug)}
-                style={{ ...ui.secondaryButton, marginLeft: "auto" }}
-              >
-                Delete
-              </button>
-            )}
-          </li>
-        ))}
-        {items.length === 0 && (
-          <li style={ui.muted}>No items yet{mayEdit ? " — create one below." : "."}</li>
-        )}
-      </ul>
+      {recent.length === 0 ? (
+        <EmptyState
+          title={`No ${singular} items yet`}
+          icon="layers"
+          description={
+            mayEdit
+              ? `Pick a slug below to open the editor — the ${singular} is saved the first time you press save.`
+              : "Nothing has been created yet. An Editor or Admin can add the first item."
+          }
+        />
+      ) : (
+        <ul className="rows">
+          {recent.map((item) => (
+            <li key={item.id}>
+              <div className="row">
+                <div className="row__main">
+                  <Link
+                    to={`/admin/content-types/${typeSlug}/items/${item.slug}`}
+                    className="row__title"
+                  >
+                    {item.slug}
+                  </Link>
+                  <span className="row__meta">
+                    <span className={statusClass(item.status)}>{item.status}</span>
+                    <span title={exactTime(item.updatedAt)}>
+                      Updated {relativeTime(item.updatedAt)}
+                    </span>
+                  </span>
+                </div>
+
+                <div className="row__actions">
+                  <Link
+                    to={
+                      typeSlug === PAGE_TYPE_SLUG
+                        ? `/${item.slug}`
+                        : `/${typeSlug}/${item.slug}`
+                    }
+                    className="btn btn--ghost btn--sm"
+                    title="Open the public page"
+                  >
+                    <Icon name="external" size={15} />
+                    View
+                  </Link>
+
+                  <Link
+                    to={`/admin/content-types/${typeSlug}/items/${item.slug}`}
+                    className="btn btn--secondary btn--sm"
+                  >
+                    <Icon name={mayEdit ? "pencil" : "file"} size={15} />
+                    {mayEdit ? "Edit" : "Open"}
+                  </Link>
+
+                  {mayEdit && (
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--icon"
+                      onClick={() => handleDelete(item.slug)}
+                    >
+                      <Icon name="trash" size={16} label={`Delete ${item.slug}`} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {mayEdit && (
-        <>
-          <hr style={{ margin: "24px 0" }} />
-
-          <h2>New {type.name.toLowerCase()}</h2>
-          <form onSubmit={(e) => e.preventDefault()} style={{ display: "flex", gap: 8 }}>
-            <input
-              value={newSlug}
-              onChange={(e) => setNewSlug(e.target.value)}
-              placeholder="slug (e.g. about)"
-              style={{ ...ui.input, flex: 1 }}
-            />
-            <Link
-              to={newSlug ? `/admin/content-types/${typeSlug}/items/${slugify(newSlug)}` : "#"}
-              style={{ ...ui.primaryButton, textDecoration: "none" }}
-            >
-              Create / Edit
-            </Link>
-          </form>
-        </>
+        <section className="card section">
+          <div className="card__header">
+            <span className="card__title">New {singular}</span>
+            <span className="card__hint">
+              The slug identifies the item within this type and forms its public URL.
+            </span>
+          </div>
+          <div className="card__body">
+            <form onSubmit={(e) => e.preventDefault()} className="input-row">
+              <input
+                ref={slugInput}
+                value={newSlug}
+                onChange={(e) => setNewSlug(e.target.value)}
+                placeholder="my-first-item"
+                aria-label={`New ${singular} slug`}
+              />
+              <Link
+                to={
+                  targetSlug
+                    ? `/admin/content-types/${typeSlug}/items/${targetSlug}`
+                    : "#"
+                }
+                className="btn btn--primary"
+                aria-disabled={targetSlug === ""}
+              >
+                Open editor
+                <Icon name="chevronRight" size={15} />
+              </Link>
+            </form>
+            {targetSlug && targetSlug !== newSlug && (
+              <p className="field__hint" style={{ marginTop: 8 }}>
+                Will be created as <code>{targetSlug}</code>
+              </p>
+            )}
+          </div>
+        </section>
       )}
-    </div>
+    </AppLayout>
   );
 }

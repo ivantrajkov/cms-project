@@ -16,9 +16,15 @@ import {
   type FieldValues,
 } from "../lib/api";
 import { canEditContent } from "../lib/auth";
+import AppLayout from "../components/AppLayout";
+import PageHeader from "../components/PageHeader";
+import Alert from "../components/Alert";
+import Loading from "../components/Loading";
+import Icon from "../components/Icon";
+import NotFound from "../components/NotFound";
 import MediaPickerField from "../components/MediaPickerField";
 import ReferencePickerField from "../components/ReferencePickerField";
-import { ui } from "../lib/ui";
+import { statusClass } from "../lib/ui";
 
 /**
  * Admin editor at /admin/content-types/:typeSlug/items/:itemSlug
@@ -37,7 +43,9 @@ export default function ContentItemEditorPage() {
   const [initialLayout, setInitialLayout] = useState<Data | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [isNew, setIsNew] = useState(false);
 
   // Which item the loaded state belongs to. Comparing it against the current route
   // params shows the loading state on navigation without resetting state in an effect.
@@ -68,6 +76,7 @@ export default function ContentItemEditorPage() {
         setType(loadedType);
         setValues(loadedValues);
         setItemStatus(item?.status ?? "Draft");
+        setIsNew(item === null);
         // Captured once: Puck treats `data` as the initial document, so handing it a
         // fresh object on later renders would discard the user's in-progress edits.
         setInitialLayout(layoutField ? toPuckData(loadedValues[layoutField.name]) : null);
@@ -110,6 +119,7 @@ export default function ContentItemEditorPage() {
   async function save(layout: Data | null) {
     if (!type) return;
 
+    setSaving(true);
     setMessage("Saving…");
     setError("");
     setSaved(false);
@@ -120,40 +130,48 @@ export default function ContentItemEditorPage() {
         status: itemStatus,
         dataJson: buildDataJson(type.fields, layout),
       });
-      setMessage("Saved ✓");
+      setMessage("Saved");
       setSaved(true);
+      setIsNew(false);
     } catch (err) {
       setMessage("");
       setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
     }
   }
 
   // Stale state from a previous item stays hidden until the new one resolves.
-  if (loadedFor !== itemKey) return <p style={{ padding: 24 }}>Loading editor…</p>;
+  if (loadedFor !== itemKey) {
+    return (
+      <AppLayout crumbs={[{ label: "Content types", to: "/admin/content-types" }]}>
+        <Loading label="Loading editor…" />
+      </AppLayout>
+    );
+  }
 
   if (!type) {
     return (
-      <div style={ui.page}>
-        <h1>Content type not found</h1>
-        <p>
-          No content type exists at <code>{typeSlug}</code>.{" "}
-          <Link to="/admin/content-types">Back to content types →</Link>
-        </p>
-      </div>
+      <NotFound
+        code="Content type not found"
+        title={`No content type at /${typeSlug}`}
+        text="The item cannot be edited without a schema to validate it against."
+        action={{ to: "/admin/content-types", label: "Back to content types" }}
+      />
     );
   }
 
   const layoutField = type.fields.find((f) => f.type === "Layout");
   const scalarFields = type.fields.filter((f) => f.type !== "Layout");
+  const publicHref = typeSlug === PAGE_TYPE_SLUG ? `/${itemSlug}` : `/${typeSlug}/${itemSlug}`;
 
   const statusPicker = (
-    <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      <span style={ui.muted}>Status</span>
+    <label className="field field--inline">
+      <span className="field__label">Status</span>
       <select
         value={itemStatus}
         onChange={(e) => setItemStatus(e.target.value as ContentItemStatus)}
         disabled={!mayEdit}
-        style={ui.input}
       >
         <option value="Draft">Draft</option>
         <option value="Published">Published</option>
@@ -163,126 +181,176 @@ export default function ContentItemEditorPage() {
 
   const feedback = (
     <>
-      {message && <span style={ui.muted}>{message}</span>}
-      {error && <span style={ui.error}>{error}</span>}
+      {message && (
+        <span className={`status-note${saved ? " status-note--ok" : ""}`}>
+          {saving ? (
+            <span className="spinner" style={{ width: 14, height: 14 }} aria-hidden="true" />
+          ) : (
+            <Icon name="check" size={15} />
+          )}
+          {message}
+        </span>
+      )}
+      {error && (
+        <span className="status-note status-note--error">
+          <Icon name="alert" size={15} />
+          {error}
+        </span>
+      )}
     </>
   );
 
   // Puck renders its own Publish button, so a Viewer cannot simply have it hidden —
   // say plainly that saving will be refused, and let the API's 403 confirm it.
   const readOnlyNotice = !mayEdit && (
-    <span style={ui.muted}>Read-only — your role cannot save changes.</span>
+    <span className="status-note">
+      <Icon name="alert" size={15} />
+      Read-only — your role cannot save changes
+    </span>
   );
 
-  const fieldInputs = scalarFields.map((field) => (
-    <label key={field.name} style={{ display: "grid", gap: 4 }}>
-      <span>
-        {field.name}
-        <span style={ui.muted}>
-          {" "}
-          — {field.type}
-          {field.required ? ", required" : ""}
-        </span>
-      </span>
-      <FieldInput
-        field={field}
-        value={values[field.name]}
-        disabled={!mayEdit}
-        onChange={(next) => setValues((current) => ({ ...current, [field.name]: next }))}
-      />
-    </label>
-  ));
+  const fieldEditor = (field: FieldDefinition) => (
+    <FieldInput
+      field={field}
+      value={values[field.name]}
+      disabled={!mayEdit}
+      onChange={(next) => setValues((current) => ({ ...current, [field.name]: next }))}
+    />
+  );
 
   // With a Layout field, Puck owns the screen and its Publish button is the save
   // action — the same shape the old page editor had. Without one, this is a plain form.
   if (layoutField && initialLayout) {
     return (
-      <div>
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            alignItems: "center",
-            flexWrap: "wrap",
-            padding: "8px 16px",
-            borderBottom: "1px solid #e5e7eb",
-          }}
-        >
-          <Link
-            to={`/admin/content-types/${typeSlug}`}
-            style={{ textDecoration: "none", fontWeight: 600 }}
-          >
-            ← Back to {type.name}
+      <div className="editor">
+        <div className="editor__bar">
+          <Link to={`/admin/content-types/${typeSlug}`} className="btn btn--secondary btn--sm">
+            <Icon name="arrowLeft" size={15} />
+            {type.name}
           </Link>
-          <span style={{ color: "#d1d5db" }}>|</span>
-          <strong>Editing:</strong>
-          <code>{itemSlug}</code>
 
-          {scalarFields.map((field) => (
-            <label key={field.name} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <span style={ui.muted}>{field.name}</span>
-              <FieldInput
-                field={field}
-                value={values[field.name]}
-                disabled={!mayEdit}
-                onChange={(next) => setValues((current) => ({ ...current, [field.name]: next }))}
-              />
-            </label>
-          ))}
+          <span className="editor__divider" aria-hidden="true" />
 
-          {statusPicker}
+          <span className="chip">
+            <code>{itemSlug}</code>
+          </span>
+          <span className={statusClass(itemStatus)}>{itemStatus}</span>
 
-          <span style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center" }}>
+          <span className="editor__divider" aria-hidden="true" />
+
+          <div className="editor__bar-group">
+            {scalarFields.map((field) => (
+              <label key={field.name} className="field field--inline">
+                <span className="field__label">{field.name}</span>
+                {fieldEditor(field)}
+              </label>
+            ))}
+            {statusPicker}
+          </div>
+
+          <span className="topbar__spacer" />
+
+          <div className="editor__bar-group">
             {readOnlyNotice}
             {feedback}
-            {saved && typeSlug === PAGE_TYPE_SLUG && (
-              <Link to={`/${itemSlug}`} style={{ fontWeight: 600 }}>
-                View live page →
+            {saved && (
+              <Link to={publicHref} className="btn btn--ghost btn--sm">
+                <Icon name="external" size={15} />
+                View live
               </Link>
             )}
-          </span>
+          </div>
         </div>
 
-        <Puck config={config} data={initialLayout} onPublish={(published) => save(published)} />
+        <div className="editor__canvas">
+          <Puck config={config} data={initialLayout} onPublish={(published) => save(published)} />
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={ui.page}>
-      <Link to={`/admin/content-types/${typeSlug}`} style={{ ...ui.muted, textDecoration: "none" }}>
-        ← Back to {type.name}
-      </Link>
+    <AppLayout
+      crumbs={[
+        { label: "Content types", to: "/admin/content-types" },
+        { label: type.name, to: `/admin/content-types/${typeSlug}` },
+        { label: itemSlug },
+      ]}
+    >
+      <PageHeader
+        eyebrow={type.name}
+        title={itemSlug}
+        description={
+          isNew
+            ? "This item does not exist yet — it is created the first time you save."
+            : undefined
+        }
+        actions={
+          <>
+            <span className={statusClass(itemStatus)}>{itemStatus}</span>
+            {!isNew && (
+              <Link to={publicHref} className="btn btn--secondary">
+                <Icon name="external" size={15} />
+                View
+              </Link>
+            )}
+          </>
+        }
+      />
 
-      <h1>
-        {type.name}: <code>{itemSlug}</code>
-      </h1>
+      {error && <Alert tone="error">{error}</Alert>}
 
       <form
         onSubmit={(e) => {
           e.preventDefault();
           save(null);
         }}
-        style={{ display: "grid", gap: 12 }}
       >
-        {fieldInputs}
-        {scalarFields.length === 0 && (
-          <p style={ui.muted}>This content type has no fields yet.</p>
-        )}
+        <section className="card">
+          <div className="card__header">
+            <span className="card__title">Fields</span>
+            <span className="card__hint">
+              Defined by the <code>{type.slug}</code> schema.
+            </span>
+          </div>
 
-        {statusPicker}
+          <div className="card__body form">
+            {scalarFields.map((field) => (
+              <label key={field.name} className="field">
+                <span className="field__label">
+                  {field.name}
+                  <span className="field__type">{field.type}</span>
+                  {field.required && (
+                    <span className="required-dot" title="Required">
+                      *
+                    </span>
+                  )}
+                </span>
+                {fieldEditor(field)}
+              </label>
+            ))}
 
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          {mayEdit && (
-            <button type="submit" style={ui.primaryButton}>
-              Save
+            {scalarFields.length === 0 && (
+              <p className="muted">
+                This content type has no fields yet. Add some on the content types screen.
+              </p>
+            )}
+          </div>
+        </section>
+
+        <div className="sticky-actions">
+          {mayEdit ? (
+            <button type="submit" className="btn btn--primary" disabled={saving}>
+              {saving ? "Saving…" : "Save item"}
             </button>
-          )}
+          ) : null}
+          {statusPicker}
+          <span className="topbar__spacer" />
           {readOnlyNotice}
           {feedback}
         </div>
       </form>
-    </div>
+    </AppLayout>
   );
 }
 
@@ -322,7 +390,6 @@ function FieldInput({ field, value, onChange, disabled }: FieldInputProps) {
           value={typeof value === "number" ? value : ""}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.valueAsNumber)}
-          style={ui.input}
         />
       );
 
@@ -344,7 +411,6 @@ function FieldInput({ field, value, onChange, disabled }: FieldInputProps) {
           value={typeof value === "string" ? value.slice(0, 10) : ""}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)}
-          style={ui.input}
         />
       );
 
@@ -355,7 +421,6 @@ function FieldInput({ field, value, onChange, disabled }: FieldInputProps) {
           value={typeof value === "string" ? value : ""}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
-          style={ui.input}
         />
       );
   }

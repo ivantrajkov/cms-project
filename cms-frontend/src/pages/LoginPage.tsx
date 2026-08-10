@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { login } from "../lib/api";
-import { ui } from "../lib/ui";
+import Alert from "../components/Alert";
+import Icon from "../components/Icon";
 
 /** Sign-in screen at /login. Redirects back to wherever the user was heading. */
 export default function LoginPage() {
@@ -31,40 +32,58 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ ...ui.page, maxWidth: 380 }}>
-      <h1>Sign in</h1>
+    <div className="auth">
+      <div className="auth__card">
+        <div className="auth__brand">
+          <span className="brand__mark" aria-hidden="true">
+            <Icon name="spark" size={18} />
+          </span>
+          Content Studio
+        </div>
 
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
-        <label style={{ display: "grid", gap: 4 }}>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="username"
-            required
-            style={ui.input}
-          />
-        </label>
+        <h1 className="auth__title">Sign in</h1>
+        <p className="auth__desc">Use your CMS account to manage content and pages.</p>
 
-        <label style={{ display: "grid", gap: 4 }}>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-            style={ui.input}
-          />
-        </label>
+        <form onSubmit={handleSubmit} className="form">
+          <label className="field">
+            <span className="field__label">Email</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              placeholder="you@example.com"
+              required
+              autoFocus
+            />
+          </label>
 
-        {error && <p style={{ ...ui.error, margin: 0 }}>{error}</p>}
+          <label className="field">
+            <span className="field__label">Password</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              placeholder="••••••••"
+              required
+            />
+          </label>
 
-        <button type="submit" disabled={busy} style={ui.primaryButton}>
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
+          {error && <Alert tone="error">{error}</Alert>}
+
+          <button type="submit" disabled={busy} className="btn btn--primary auth__submit">
+            {busy ? (
+              <>
+                <span className="spinner" style={{ borderColor: "rgb(255 255 255 / 40%)", borderTopColor: "#fff" }} />
+                Signing in…
+              </>
+            ) : (
+              "Sign in"
+            )}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

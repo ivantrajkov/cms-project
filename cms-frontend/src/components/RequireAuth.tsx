@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { getSession, type Role } from "../lib/auth";
-import { ui } from "../lib/ui";
+import NotFound from "./NotFound";
 
 interface Props {
   children: ReactNode;
@@ -25,14 +25,12 @@ export default function RequireAuth({ children, roles }: Props) {
 
   if (roles && !roles.includes(session.role)) {
     return (
-      <div style={ui.page}>
-        <h1>Not authorized</h1>
-        <p style={ui.muted}>
-          This page requires the {roles.join(" or ")} role. You are signed in as{" "}
-          <strong>{session.email}</strong> ({session.role}).
-        </p>
-        <Link to="/">← Back to dashboard</Link>
-      </div>
+      <NotFound
+        code="Not authorized"
+        title={`This page needs the ${roles.join(" or ")} role`}
+        text={`You are signed in as ${session.email} (${session.role}).`}
+        action={{ to: "/", label: "Back to dashboard" }}
+      />
     );
   }
 
