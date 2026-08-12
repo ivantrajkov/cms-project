@@ -36,6 +36,8 @@ public class ContentTypesController(AppDbContext db) : ControllerBase
     /// </summary>
     [AllowAnonymous]
     [HttpGet("{slug}")]
+    [ProducesResponseType<ContentTypeDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ContentTypeDto>> GetBySlug(string slug)
     {
         var type = await db.ContentTypes.AsNoTracking().FirstOrDefaultAsync(t => t.Slug == slug);
@@ -52,6 +54,8 @@ public class ContentTypesController(AppDbContext db) : ControllerBase
     /// </summary>
     [Authorize(Roles = Roles.Admin)]
     [HttpPost]
+    [ProducesResponseType<ContentTypeDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<string>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ContentTypeDto>> Save(SaveContentTypeRequest request)
     {
         if (!Slug.IsValid(request.Slug))
@@ -131,6 +135,9 @@ public class ContentTypesController(AppDbContext db) : ControllerBase
     /// <summary>DELETE /api/content-types/{slug} — refuses if any items still reference this type.</summary>
     [Authorize(Roles = Roles.Admin)]
     [HttpDelete("{slug}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<string>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(string slug)
     {
         var type = await db.ContentTypes.FirstOrDefaultAsync(t => t.Slug == slug);

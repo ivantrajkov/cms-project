@@ -32,6 +32,9 @@ public class ContentItemsController(
     /// </summary>
     [AllowAnonymous]
     [HttpGet]
+    [ProducesResponseType<IEnumerable<ContentItemListDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<string>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<IEnumerable<ContentItemListDto>>> GetAll(
         string typeSlug,
         bool includeData = false,
@@ -86,6 +89,8 @@ public class ContentItemsController(
     /// </summary>
     [AllowAnonymous]
     [HttpGet("{itemSlug}")]
+    [ProducesResponseType<ContentItemDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ContentItemDto>> GetBySlug(string typeSlug, string itemSlug)
     {
         var type = await db.ContentTypes.AsNoTracking().FirstOrDefaultAsync(t => t.Slug == typeSlug);
@@ -111,6 +116,11 @@ public class ContentItemsController(
     /// </summary>
     [Authorize(Roles = Roles.ContentAuthors)]
     [HttpPost]
+    [ProducesResponseType<ContentItemDto>(StatusCodes.Status200OK)]
+    // A schema violation answers with a JSON array of messages; the other rejections are a
+    // single string, which is why this is left untyped.
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ContentItemDto>> Save(string typeSlug, SaveContentItemRequest request)
     {
         var type = await db.ContentTypes.FirstOrDefaultAsync(t => t.Slug == typeSlug);
@@ -189,6 +199,9 @@ public class ContentItemsController(
     /// </summary>
     [Authorize(Roles = Roles.ContentAuthors)]
     [HttpDelete("{itemSlug}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<string>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(string typeSlug, string itemSlug)
     {
         var type = await db.ContentTypes.FirstOrDefaultAsync(t => t.Slug == typeSlug);

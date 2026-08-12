@@ -1,19 +1,42 @@
 using cms_api.Data;
 using cms_api.Models;
+using cms_api.OpenApi;
 using cms_api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
 
+// OpenAPI document, rendered by Swagger UI at /swagger in development.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+    options.AddOperationTransformer<AuthorizationOperationTransformer>();
+
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Info = new OpenApiInfo
+        {
+            Title = "CMS API",
+            Version = "v1",
+            Description =
+                "Content types, content items, media and users for the CMS.\n\n" +
+                "Reads of published content are anonymous so the public site can render " +
+                "without a token; everything else needs a bearer token from " +
+                "`POST /api/auth/login`, and the write endpoints additionally require a role."
+        };
+
+        return Task.CompletedTask;
+    });
+});
 
 // EF Core + SQLite
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -100,6 +123,19 @@ if (app.Environment.IsDevelopment())
     // AllowAnonymous: the FallbackPolicy would otherwise put the API description itself
     // behind a login, which defeats the point of serving it in development.
     app.MapOpenApi().AllowAnonymous();
+
+    // Swagger UI over that document. Registered as middleware ahead of UseRouting so it
+    // serves /swagger itself and never reaches the authenticated-by-default endpoint
+    // pipeline (or the catch-all 404 below).
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/openapi/v1.json", "CMS API v1");
+        options.RoutePrefix = "swagger";
+        options.DocumentTitle = "CMS API — Swagger";
+
+        // Keeps a token entered via "Authorize" across reloads of the docs page.
+        options.EnablePersistAuthorization();
+    });
 }
 
 app.UseHttpsRedirection();
@@ -130,10 +166,9 @@ app.MapFallback("{*path}", () => Results.NotFound()).AllowAnonymous();
 
 app.Run();
 
-/// <summary>
-/// Creates the first Admin from configuration, but only while the Users table is empty —
-/// so a fresh clone is usable, and an existing deployment is never silently altered.
-/// </summary>
+// Creates the first Admin from configuration, but only while the Users table is empty —
+// so a fresh clone is usable, and an existing deployment is never silently altered.
+// (A plain comment rather than XML: this is a local function, which cannot carry doc comments.)
 static async Task SeedAdminAsync(IServiceProvider services, IConfiguration configuration, ILogger logger)
 {
     var db = services.GetRequiredService<AppDbContext>();
@@ -168,3 +203,10 @@ static async Task SeedAdminAsync(IServiceProvider services, IConfiguration confi
 
     logger.LogInformation("Seeded initial Admin account {Email}.", admin.Email);
 }
+
+/// <summary>
+/// Top-level statements compile into an internal <c>Program</c> class, which
+/// <c>WebApplicationFactory&lt;Program&gt;</c> cannot reference. Declaring it public here is
+/// the standard way to make the whole application host available to the integration tests.
+/// </summary>
+public partial class Program;

@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>cms_api.Tests</RootNamespace>
+
+        <!-- xUnit v3 test projects are executables: the assembly hosts its own runner. -->
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+
+        <!-- xUnit1051 asks every awaited call to thread TestContext.Current.CancellationToken
+             through. These tests run entirely in memory and finish in milliseconds, so the
+             token would buy nothing and cost an argument on every single assertion. -->
+        <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="xunit.v3" Version="3.2.2" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+        <PackageReference Include="coverlet.collector" Version="6.0.4">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+
+        <!-- Spins up the real application in-process (TestServer) for the endpoint tests. -->
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.9" />
+        <!-- Referenced directly so the tests can own the SqliteConnection they swap in. -->
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Every test file needs it; keeps Xunit out of each file's using block. -->
+        <Using Include="Xunit" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\cms-api\cms-api.csproj" />
+    </ItemGroup>
+
+</Project>

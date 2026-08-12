@@ -5,6 +5,12 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>cms_api</RootNamespace>
+
+        <!-- The XML doc comments already on the controllers become the descriptions in the
+             OpenAPI document, so the docs page is written from the source of truth.
+             CS1591 is suppressed: documenting every public member is not the goal here. -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
@@ -15,6 +21,13 @@
           <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
+        <!-- UI only. The document itself is produced by Microsoft.AspNetCore.OpenApi above;
+             Swashbuckle is here purely to render it at /swagger. -->
+        <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.2.3" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="cms-api.Tests" />
     </ItemGroup>
 
 </Project>

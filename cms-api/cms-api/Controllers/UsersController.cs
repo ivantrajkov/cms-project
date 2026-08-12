@@ -36,6 +36,8 @@ public class UsersController(AppDbContext db, IPasswordHasher<User> passwordHash
 
     /// <summary>POST /api/users — create an account.</summary>
     [HttpPost]
+    [ProducesResponseType<UserDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<string>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<UserDto>> Create(CreateUserRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
@@ -69,6 +71,9 @@ public class UsersController(AppDbContext db, IPasswordHasher<User> passwordHash
 
     /// <summary>POST /api/users/{id} — change a user's role and/or reset their password.</summary>
     [HttpPost("{id:guid}")]
+    [ProducesResponseType<UserDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<string>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<UserDto>> Update(Guid id, UpdateUserRequest request)
     {
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == id);
@@ -98,6 +103,9 @@ public class UsersController(AppDbContext db, IPasswordHasher<User> passwordHash
 
     /// <summary>DELETE /api/users/{id}</summary>
     [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<string>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id)
     {
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == id);

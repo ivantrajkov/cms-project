@@ -24,6 +24,8 @@ public class AuthController(
     /// </summary>
     [AllowAnonymous]
     [HttpPost("login")]
+    [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request)
     {
         const string invalidCredentials = "Invalid email or password.";
@@ -56,6 +58,7 @@ public class AuthController(
 
     /// <summary>GET /api/auth/me — the caller's identity, taken from their token.</summary>
     [HttpGet("me")]
+    [ProducesResponseType<CurrentUserDto>(StatusCodes.Status200OK)]
     public ActionResult<CurrentUserDto> Me()
     {
         // Claim names are read exactly as issued — inbound claim mapping is disabled so
