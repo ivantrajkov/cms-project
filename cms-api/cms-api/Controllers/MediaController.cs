@@ -41,6 +41,8 @@ public class MediaController(
     /// <summary>GET /api/media/{id}</summary>
     [AllowAnonymous]
     [HttpGet("{id:guid}")]
+    [ProducesResponseType<MediaAssetDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<MediaAssetDto>> GetById(Guid id)
     {
         var asset = await db.MediaAssets.AsNoTracking().FirstOrDefaultAsync(m => m.Id == id);
@@ -54,6 +56,8 @@ public class MediaController(
     /// <summary>POST /api/media/{id} — update the asset's alt text.</summary>
     [Authorize(Roles = Roles.ContentAuthors)]
     [HttpPost("{id:guid}")]
+    [ProducesResponseType<MediaAssetDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<MediaAssetDto>> Update(Guid id, UpdateMediaRequest request)
     {
         var asset = await db.MediaAssets.FirstOrDefaultAsync(m => m.Id == id);
@@ -74,6 +78,9 @@ public class MediaController(
     /// </summary>
     [Authorize(Roles = Roles.ContentAuthors)]
     [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<string>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id)
     {
         var asset = await db.MediaAssets.FirstOrDefaultAsync(m => m.Id == id);

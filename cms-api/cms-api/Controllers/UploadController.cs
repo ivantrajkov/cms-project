@@ -33,6 +33,8 @@ public class UploadController(IWebHostEnvironment env, AppDbContext db) : Contro
     /// </summary>
     [HttpPost]
     [RequestSizeLimit(MaxBytes)]
+    [ProducesResponseType<UploadResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType<string>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<UploadResult>> Upload(IFormFile file)
     {
         if (file is null || file.Length == 0)
