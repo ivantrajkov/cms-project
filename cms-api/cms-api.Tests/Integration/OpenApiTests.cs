@@ -134,6 +134,18 @@ public class OpenApiTests(CmsApiFactory factory) : IClassFixture<CmsApiFactory>
     }
 
     [Fact]
+    public async Task Every_operation_documents_the_error_it_can_always_return()
+    {
+        // Unhandled failures are answered uniformly by the global exception handler, so the
+        // 500 belongs on every operation — including the anonymous ones nothing else marks up.
+        var responses = Operation(await GetDocumentAsync(), "/api/content-types", "get")
+            .GetProperty("responses");
+
+        Assert.True(responses.TryGetProperty("500", out var error));
+        Assert.Contains("problem+json", error.GetProperty("description").GetString()!);
+    }
+
+    [Fact]
     public async Task A_success_response_carries_the_schema_of_what_it_returns()
     {
         var content = Operation(await GetDocumentAsync(), "/api/auth/login", "post")

@@ -1,4 +1,5 @@
 using cms_api.Data;
+using cms_api.Middleware;
 using cms_api.Models;
 using cms_api.OpenApi;
 using cms_api.Services;
@@ -14,12 +15,21 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 
+// One answer for every unhandled failure. AddProblemDetails supplies the writer that turns a
+// ProblemDetails object into a negotiated response; GlobalExceptionHandler decides the status
+// and what is safe to say. This changes nothing about the rejections the controllers return
+// themselves — it only replaces the two default behaviours nobody can use: an HTML stack-trace
+// page in development and an empty 500 everywhere else.
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
 // OpenAPI document, rendered by Swagger UI at /swagger in development.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
     options.AddOperationTransformer<AuthorizationOperationTransformer>();
+    options.AddOperationTransformer<ErrorResponseOperationTransformer>();
 
     options.AddDocumentTransformer((document, _, _) =>
     {
@@ -118,6 +128,13 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
+
+// First, so it wraps everything below it — including the static files and the terminal 404.
+// It also sits inside the developer exception page the host adds in development, which means
+// the handler answers there too and no environment can fail in a shape the others never send.
+// Nothing is lost locally: in Development the handler puts the exception in the response.
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     // AllowAnonymous: the FallbackPolicy would otherwise put the API description itself
